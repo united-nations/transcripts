@@ -1,3 +1,9 @@
+import {
+  upstreamFetch,
+  upstreamEvent,
+  type UpstreamPurpose,
+} from "./upstream-http";
+import { validateKalturaResponse } from "./kaltura-response";
 import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 
@@ -50,12 +56,18 @@ export interface PollResult {
   error_message?: string;
 }
 
-async function fetchKalturaFlavors(kalturaId: string) {
-  const apiResponse = await fetch(
+async function fetchKalturaFlavors(
+  kalturaId: string,
+  purpose: UpstreamPurpose = "kaltura_audio",
+  cacheSeconds = 0,
+) {
+  const apiResponse = await upstreamFetch(
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         "1": {
           service: "session",
@@ -82,6 +94,17 @@ async function fetchKalturaFlavors(kalturaId: string) {
         partnerId: KALTURA_PARTNER_ID,
       }),
     },
+    {
+      purpose,
+      cacheSeconds,
+      validate: (body) => {
+        validateKalturaResponse(body);
+        const data = JSON.parse(body);
+        if (!data[1]?.objects?.[0]?.id || !Array.isArray(data[2]?.objects)) {
+          throw new Error("Invalid Kaltura flavor response");
+        }
+      },
+    },
   );
 
   if (!apiResponse.ok) throw new Error("Failed to query Kaltura API");
@@ -104,9 +127,10 @@ function buildAudioUrl(entryId: string, flavorParamId: number) {
 export async function getKalturaAudioUrl(
   kalturaId: string,
   language = "english",
+  snapshot?: Awaited<ReturnType<typeof fetchKalturaFlavors>>,
 ) {
   const { entryId, flavors, isLiveStream } =
-    await fetchKalturaFlavors(kalturaId);
+    snapshot ?? (await fetchKalturaFlavors(kalturaId));
 
   const candidates = audioFlavorsForLanguage(flavors, language);
   const readyFlavor = pickReadyAudioFlavor(candidates);
@@ -144,8 +168,27 @@ export async function getKalturaAudioUrl(
   };
 }
 
+/** One fresh flavor response per meeting per processing run, including failed probes. */
+export function createKalturaReadinessProbe() {
+  const snapshots = new Map<string, ReturnType<typeof fetchKalturaFlavors>>();
+  return async (kalturaId: string, language: string) => {
+    let snapshot = snapshots.get(kalturaId);
+    if (!snapshot) {
+      snapshot = fetchKalturaFlavors(kalturaId, "kaltura_readiness");
+      snapshots.set(kalturaId, snapshot);
+    } else {
+      upstreamEvent("kaltura_readiness", "tick_reuse");
+    }
+    return getKalturaAudioUrl(kalturaId, language, await snapshot);
+  };
+}
+
 export async function getAvailableAudioLanguages(kalturaId: string) {
-  const { entryId, flavors } = await fetchKalturaFlavors(kalturaId);
+  const { entryId, flavors } = await fetchKalturaFlavors(
+    kalturaId,
+    "kaltura_visitor_languages",
+    300,
+  );
 
   const audioFlavors = flavors.filter(
     (f: { tags?: string; status?: number }) =>

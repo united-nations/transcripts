@@ -191,7 +191,9 @@ export async function renderVideoPage({
   const webtv = classifyWebtv(status);
   let kaltura: Liveness = "unknown";
   if (webtv === "live" && record.entry_id) {
-    const statuses = await fetchKalturaEntryStatuses([record.entry_id]);
+    const statuses = await fetchKalturaEntryStatuses([record.entry_id], {
+      visitor: true,
+    });
     kaltura = classifyKaltura(statuses.get(record.entry_id));
   }
   if (webtv === "gone" || kaltura === "gone") {

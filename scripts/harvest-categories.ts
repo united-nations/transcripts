@@ -1,3 +1,5 @@
+import { upstreamFetch } from "../lib/upstream-http";
+
 /**
  * One-shot harvester: scrape WebTV's per-locale schedule pages across several
  * dates and build an English → { fr, es, ar, zh, ru } mapping of category
@@ -14,9 +16,6 @@
 
 const LOCALES = ["en", "fr", "es", "ar", "zh", "ru"] as const;
 type Locale = (typeof LOCALES)[number];
-
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 // Mirrors the regex in lib/un-api.ts but with the locale prefix templated in.
 function videoBlockPattern(locale: Locale): RegExp {
@@ -54,7 +53,7 @@ async function fetchSchedule(
 ): Promise<Array<{ assetId: string; category: string }>> {
   const url = `https://webtv.un.org/${locale}/schedule/${date}`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA } });
+    const res = await upstreamFetch(url, {}, { purpose: "webtv_categories" });
     if (!res.ok) return [];
     const html = await res.text();
     const out: Array<{ assetId: string; category: string }> = [];

@@ -4,6 +4,7 @@ import {
 } from "./kaltura-helpers";
 import {
   getRemovalCandidates,
+  type RemovalScope,
   markVideoRemoved,
   clearVideoRemoved,
 } from "./db";
@@ -72,6 +73,8 @@ export interface ReapRemovedOptions {
   apply: boolean;
   /** Only consider rows seen in the last N days. Default 30. */
   lookbackDays?: number;
+  /** Today is checked hourly; other recent records once daily. */
+  scope?: RemovalScope;
   /** Kaltura idIn batch size. Default 100. */
   batch?: number;
   /** Concurrent WebTV asset-page GETs. Default 8. */
@@ -134,11 +137,12 @@ export async function reapRemovedVideos(
   const {
     apply,
     lookbackDays = 30,
+    scope = "all",
     batch = 100,
     concurrency = 8,
     onChange,
   } = opts;
-  const rows = await getRemovalCandidates(lookbackDays);
+  const rows = await getRemovalCandidates(lookbackDays, scope);
 
   const result: ReapRemovedResult = {
     candidates: rows.length,
@@ -165,7 +169,7 @@ export async function reapRemovedVideos(
 
   // 2. WebTV liveness, one GET per asset, bounded concurrency.
   const webtv = await mapLimit(rows, concurrency, (row) =>
-    fetchAssetPage(row.asset_id).then(({ status }) => status),
+    fetchAssetPage(row.asset_id, { fresh: true }).then(({ status }) => status),
   );
 
   // 3. Circuit breaker over the definite (404 or 2xx) WebTV answers.
@@ -177,7 +181,10 @@ export async function reapRemovedVideos(
     definite++;
     if (verdict === "gone") gone++;
   }
-  if (definite >= WEBTV_ABORT_MIN_SAMPLE && gone / definite >= WEBTV_ABORT_FRACTION) {
+  if (
+    definite >= WEBTV_ABORT_MIN_SAMPLE &&
+    gone / definite >= WEBTV_ABORT_FRACTION
+  ) {
     result.webtvAborted = true;
     console.warn(
       `[reap] WebTV circuit breaker: ${gone}/${definite} candidates 404 — ` +

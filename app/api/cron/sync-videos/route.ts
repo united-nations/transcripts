@@ -6,8 +6,11 @@ import { checkCronAuth } from "@/lib/cron/auth";
 export async function GET(request: NextRequest) {
   const unauthorized = checkCronAuth(request);
   if (unauthorized) return unauthorized;
+  const requestedRange = request.nextUrl.searchParams.get("range");
   const range =
-    request.nextUrl.searchParams.get("range") === "far" ? "far" : "near";
+    requestedRange === "far" || requestedRange === "tomorrow"
+      ? requestedRange
+      : "near";
   const result = await runSyncVideos(range);
   return NextResponse.json(result);
 }

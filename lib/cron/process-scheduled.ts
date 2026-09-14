@@ -1,3 +1,4 @@
+import { isTransientPipelineError } from "@/lib/pipeline-errors";
 import { after } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import {
@@ -10,7 +11,7 @@ import {
   MAX_INTERRUPTED_RETRIES,
 } from "@/lib/db";
 import {
-  getKalturaAudioUrl,
+  createKalturaReadinessProbe,
   submitTranscription,
   runSpeakerIdentification,
   runPropositionAnalysisJob,
@@ -90,6 +91,7 @@ export async function runProcessScheduled(
       getRunnableAnalyses(),
     ]);
 
+    const probeReadiness = createKalturaReadinessProbe();
     let started = 0;
     let resumed = 0;
     let pending = 0;
@@ -194,7 +196,7 @@ export async function runProcessScheduled(
         // after the live→VOD flip. Runs BEFORE the claim below so a
         // not-ready tick doesn't burn an interrupted-row retry or churn
         // claim/release on the row.
-        const { isLiveStream } = await getKalturaAudioUrl(
+        const { isLiveStream } = await probeReadiness(
           kalturaId,
           bcp47ToKalturaName(item.language_code || "en"),
         );
@@ -258,7 +260,8 @@ export async function runProcessScheduled(
         if (
           msg.includes("404") ||
           msg.includes("not found") ||
-          msg.includes("no flavors")
+          msg.includes("no flavors") ||
+          isTransientPipelineError(err)
         ) {
           pending++;
         } else {

@@ -91,7 +91,7 @@ See `.env.example` for all variables. Core ones:
 - **Transcription**: per-language STT routing (Azure LLM Speech for en/fr/es/ar/ru, Alibaba Fun-ASR for zh, Speechmatics Melia for the floor) — see `lib/providers/config.ts`
 - **Speaker ID**: Azure OpenAI (structured output via Zod)
 - **Video hosting**: Kaltura (partner ID: 2503451)
-- **Deployment**: Vercel — three cron jobs: `process-scheduled` every 5 min, `sync-videos` every 15 min, `check-pv` every 6 hours
+- **Deployment**: Azure Web App — container cron schedules today every 30 min, tomorrow hourly, and days 2–7 ahead every 6 hours. Removal checks run hourly for today and daily for other recent meetings. See `docker/crontab.template` for all jobs.
 - **Package manager**: pnpm
 
 ## Project Structure

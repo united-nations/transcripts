@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { upstreamFetch, observeUpstreamContent } from "./upstream-http";
 
 import {
   getVideoByAssetId,
@@ -341,12 +342,12 @@ export async function fetchVideosForDate(
   const yesterday = formatDate(new Date(Date.now() - 86400000));
   const revalidate = date >= today ? 300 : date === yesterday ? 3600 : 86400;
 
-  const response = await fetch(
+  const response = await upstreamFetch(
     `https://webtv.un.org/${locale}/schedule/${date}`,
-    {
-      next: { revalidate },
-    },
+    {},
+    { purpose: "webtv_schedule", cacheSeconds: revalidate },
   );
+  if (!response.ok) throw new Error(`WebTV schedule HTTP ${response.status}`);
 
   const html = await response.text();
   const videos: Video[] = [];
@@ -455,6 +456,20 @@ export async function fetchVideosForDate(
     });
   }
 
+  observeUpstreamContent(
+    "webtv_schedule",
+    `${locale}/${date}`,
+    videos
+      .map(({ id, title, category, scheduledTime, duration }) => ({
+        id,
+        title,
+        category,
+        scheduledTime,
+        duration,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    response.headers.get("x-transcripts-observed-at"),
+  );
   return videos;
 }
 
@@ -654,14 +669,27 @@ function isEmptyMetadata(metadata: VideoMetadata): boolean {
  */
 export async function fetchAssetPage(
   assetId: string,
+  options: { fresh?: boolean } = {},
 ): Promise<{ status: number; html: string | null }> {
   const url = `https://webtv.un.org/en/asset/${assetId}`;
   try {
-    const response = await fetch(url, {
-      next: { revalidate: 3600 }, // 1 hour cache
-    });
+    const response = await upstreamFetch(
+      url,
+      {},
+      {
+        purpose: options.fresh ? "webtv_removal" : "webtv_metadata",
+        cacheSeconds: options.fresh ? 0 : 3 * 3600,
+      },
+    );
     if (!response.ok) return { status: response.status, html: null };
-    return { status: response.status, html: await response.text() };
+    const html = await response.text();
+    observeUpstreamContent(
+      options.fresh ? "webtv_removal" : "webtv_metadata",
+      assetId,
+      parseVideoMetadata(html),
+      response.headers.get("x-transcripts-observed-at"),
+    );
+    return { status: response.status, html };
   } catch {
     return { status: 0, html: null }; // network error → unknown liveness
   }
@@ -692,10 +720,13 @@ export async function getVideoMetadata(
   // `field__label` markup and legitimately parse empty. If the block is there
   // but nothing came out, the markup drifted and the extractors need updating.
   if (isEmptyMetadata(metadata) && html.includes("field__label")) {
-    Sentry.captureMessage("WebTV metadata parsed empty despite metadata block", {
-      level: "warning",
-      extra: { assetId, url, htmlLength: html.length },
-    });
+    Sentry.captureMessage(
+      "WebTV metadata parsed empty despite metadata block",
+      {
+        level: "warning",
+        extra: { assetId, url, htmlLength: html.length },
+      },
+    );
   }
 
   return metadata;
