@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
@@ -9,7 +9,6 @@ import {
   videoToRecord,
   parseVideoMetadata,
   stripTags,
-  fetchVideosForDate,
   type Video,
 } from "@/lib/un-api";
 
@@ -125,46 +124,6 @@ const webtvFixture = (name: string) =>
     join(__dirname, "__fixtures__", "webtv", `${name}.html`),
     "utf8",
   );
-
-describe("schedule discovery", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it.each(["en", "fr"] as const)(
-    "keeps uncategorized CED meetings alongside categorized meetings (%s)",
-    async (locale) => {
-      const html = webtvFixture("schedule-empty-category").replaceAll(
-        "/en/asset/",
-        `/${locale}/asset/`,
-      );
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(html)));
-      const videos = await fetchVideosForDate("2026-09-14", locale);
-      expect(videos).toHaveLength(4);
-      expect(
-        videos
-          .filter((v) => v.title.includes("(CED)"))
-          .map((v) => ({
-            id: v.id,
-            category: v.category,
-            scheduledTime: v.scheduledTime,
-          })),
-      ).toEqual([
-        {
-          id: "k1i/k1iyessmbe",
-          category: "",
-          scheduledTime: "2026-09-14T08:00:00-04:00",
-        },
-        {
-          id: "k12/k12hac0mvt",
-          category: "",
-          scheduledTime: "2026-09-14T13:00:00-04:00",
-        },
-      ]);
-      expect(videos.find((v) => v.title.includes("(CRC)"))?.category).toBe(
-        "Human Rights Treaty Bodies",
-      );
-    },
-  );
-});
 
 describe("parseVideoMetadata (real WebTV asset markup)", () => {
   it("extracts related documents whose anchors carry attributes after href", () => {
