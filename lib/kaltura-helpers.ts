@@ -1,4 +1,5 @@
-import { UPSTREAM_USER_AGENT } from "./upstream-identity";
+import { upstreamFetch } from "./upstream-http";
+import { validateKalturaResponse } from "./kaltura-response";
 import { updateVideoEntryId } from "./db";
 import {
   extractKalturaId,
@@ -15,13 +16,12 @@ export async function resolveEntryIdFromKaltura(
   kalturaId: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(
+    const response = await upstreamFetch(
       "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": UPSTREAM_USER_AGENT,
         },
         body: JSON.stringify({
           "1": {
@@ -43,6 +43,7 @@ export async function resolveEntryIdFromKaltura(
           partnerId: KALTURA_PARTNER_ID,
         }),
       },
+      { purpose: "kaltura_resolve", validate: validateKalturaResponse },
     );
 
     if (!response.ok) {
@@ -68,13 +69,12 @@ export async function fetchKalturaDurations(
   entryIds: string[],
 ): Promise<Map<string, number>> {
   if (entryIds.length === 0) return new Map();
-  const response = await fetch(
+  const response = await upstreamFetch(
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": UPSTREAM_USER_AGENT,
       },
       body: JSON.stringify({
         "1": {
@@ -97,6 +97,7 @@ export async function fetchKalturaDurations(
         partnerId: KALTURA_PARTNER_ID,
       }),
     },
+    { purpose: "kaltura_duration", validate: validateKalturaResponse },
   );
   if (!response.ok) {
     throw new Error(`Kaltura API failed: ${response.status}`);
@@ -125,15 +126,15 @@ export const KALTURA_STATUS_DELETED = 3;
  */
 export async function fetchKalturaEntryStatuses(
   entryIds: string[],
+  options: { visitor?: boolean } = {},
 ): Promise<Map<string, number>> {
   if (entryIds.length === 0) return new Map();
-  const response = await fetch(
+  const response = await upstreamFetch(
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": UPSTREAM_USER_AGENT,
       },
       body: JSON.stringify({
         "1": {
@@ -160,6 +161,11 @@ export async function fetchKalturaEntryStatuses(
         clientTag: "html5:v3.17.30",
         partnerId: KALTURA_PARTNER_ID,
       }),
+    },
+    {
+      purpose: options.visitor ? "kaltura_visitor_status" : "kaltura_status",
+      cacheSeconds: options.visitor ? 300 : 0,
+      validate: validateKalturaResponse,
     },
   );
   if (!response.ok) {

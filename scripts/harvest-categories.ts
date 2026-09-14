@@ -1,4 +1,4 @@
-import { UPSTREAM_USER_AGENT } from "../lib/upstream-identity";
+import { upstreamFetch } from "../lib/upstream-http";
 
 /**
  * One-shot harvester: scrape WebTV's per-locale schedule pages across several
@@ -53,9 +53,7 @@ async function fetchSchedule(
 ): Promise<Array<{ assetId: string; category: string }>> {
   const url = `https://webtv.un.org/${locale}/schedule/${date}`;
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": UPSTREAM_USER_AGENT },
-    });
+    const res = await upstreamFetch(url, {}, { purpose: "webtv_categories" });
     if (!res.ok) return [];
     const html = await res.text();
     const out: Array<{ assetId: string; category: string }> = [];

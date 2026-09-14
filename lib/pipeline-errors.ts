@@ -1,3 +1,6 @@
+/** Upstream throttling/outage: retry on a later worker tick. */
+export class UpstreamUnavailableError extends Error {}
+
 // Thrown when a downloaded audio file is missing / empty / truncated / a
 // non-audio error body saved with an audio name, or ffmpeg cannot decode it.
 // These are download-timing / availability problems (Kaltura still converting
@@ -20,7 +23,11 @@ export class UnusableAudioError extends Error {
 // `error` and need a human.
 export function isTransientPipelineError(err: unknown): boolean {
   // Unusable/undecodable/empty audio downloads are retryable by construction.
-  if (err instanceof UnusableAudioError) return true;
+  if (
+    err instanceof UnusableAudioError ||
+    err instanceof UpstreamUnavailableError
+  )
+    return true;
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return [
     "download error",

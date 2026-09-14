@@ -233,11 +233,12 @@ actual cache-miss and page-mix telemetry; bot/API traffic may not be in page vie
 Kaltura HTTP requests (a multirequest is ONE HTTP request, containing 2–3 API
 operations):
 
-- A normal interactive meeting visit causes one uncached entry-status request
-  on server render and one uncached flavor/language request on client mount.
-  At 2,000 meeting views/day this is about 4,000 API requests/day before player
-  traffic, language refreshes, or transcription. Actual volume depends on the
-  fraction of views that are meeting pages. This behavior is unchanged.
+- Before the visitor cache, a normal interactive meeting visit caused one
+  uncached entry-status request on server render and one uncached flavor/language
+  request on client mount: up to about 4,000 API requests/day at 2,000 meeting
+  visits/day, before player traffic. Both lookups now use a five-minute persistent
+  cache. DB-derived transcript statuses remain uncached in `/api/languages`.
+  Readiness and removal sweeps bypass this visitor cache.
 - Missing-duration backfill: 100 entries/request. With 34 candidates, 96/day
   previously versus 48/day now, if those candidates persist.
 - Removal status batches: 100 entries/request. Previously `4 * ceil(409/100)`
@@ -246,16 +247,80 @@ operations):
   together fall from 116 to 76/day (34%).
 - New entry resolution: one request per uncached/unresolved video per sync
   attempt; successful resolutions are persisted. No extra lookup for cached IDs.
-- Scheduled transcription: every five minutes, one flavor request per eligible
-  waiting transcript/language. Future bookings are skipped; live or converting
-  recordings are retried. For P continuously waiting eligible rows, this is
-  12P/hour, plus a further lookup when submitting transcription. Counts of all
-  scheduled rows alone would overestimate this traffic.
+- Scheduled transcription: every five minutes, one fresh flavor request per
+  distinct eligible meeting, shared across its waiting languages for that run.
+  Future bookings are skipped; live/converting recordings are retried. For M
+  continuously waiting eligible meetings this is 12M/hour (previously 12P/hour
+  for P language rows), plus a fresh lookup when submitting transcription.
+  A rejected probe is also shared within the tick but retried next tick.
 - Realignment: hourly duration batches of up to 400 unique entries, plus
   on-demand metadata/media calls for actual realignments. Player manifests,
   segments, thumbnails, and audio downloads are additional media traffic.
 
-Follow-up opportunities for Kaltura: cache page-only status/language lookups
-briefly and deduplicate flavor probes across languages of the same meeting per
-worker tick. Keep recording readiness probes fresh, and cache only upstream
-language availability (not the DB-derived transcript status returned beside it).
+## Request pacing, caching, and measurement
+
+`lib/upstream-http.ts` is the shared transport for Web TV HTML and Kaltura
+metadata API calls (including the category harvester). It preserves persistent
+Next.js caching using `unstable_cache`, with the actual HTTP fetch inside the
+cache callback explicitly `no-store`. Concurrent cache readers are coalesced
+within each process. HTTP failures and HTTP-200 Kaltura API exceptions are not
+cached as successes. Normal Next.js stale-while-revalidate semantics apply;
+failed background refreshes preserve the last successful cached result.
+Standalone CLI scripts have no Next cache context, so use paced, metered fresh
+requests instead. The cache starts cold on the first deployment of this change.
+
+- Web TV: maximum three requests in flight, starts at least 300 ms apart.
+- Kaltura: maximum four requests in flight, starts at least 100 ms apart.
+- Limits and host-wide cooldowns apply per Node process, not across replicas.
+- On 429/503, honor both numeric and HTTP-date `Retry-After`, with exponential
+  backoff and jitter (at most two retries). Other queued calls to that host
+  defer during the cooldown without hitting the network. Waits over ten seconds
+  return a transient error instead of holding the handler open; the cooldown
+  still lasts the full requested interval. A later request/tick can retry.
+- Requests have a 30-second network timeout. Same-origin redirects are followed
+  explicitly, up to five hops, so each hop is included in request counts.
+- A visitor can see a newly removed Kaltura entry for up to the cache refresh
+  interval (five minutes plus refresh time); scheduled removal checks stay fresh.
+
+Each event is one JSON object with `type: "upstream"`, UTC `at`, process instance,
+`purpose`, and `event`. Events go to stderr (container logs) so CLI JSON output
+stays usable. No URLs, request bodies, tokens, or metadata text are logged.
+Purposes distinguish schedule, visitor metadata, removal, category harvesting,
+Kaltura visitor status/languages, duration, resolution, readiness, and audio
+selection. This measures server metadata traffic, not player/CDN/media traffic.
+
+- `network`: one actual HTTP attempt/hop, including retries; status, duration,
+  body bytes, and transport/body-read failure flag. Do not add cache events to
+  this count. There is no hidden fetch-cache hit below this measurement point.
+- `cache_lookup`, `cache_hit`, `cache_miss`, `coalesced`, `cache_bypass`: cache
+  outcomes. `cache_hit` includes serving stale data during background refresh.
+- `retry`, `deferred`, `validation_error`, `tick_reuse`, `redirect`: resilience
+  and sharing behavior. Deferred calls make zero network requests.
+- `content`: SHA-256 fingerprints of parsed schedule fields or asset metadata,
+  plus a hashed resource key and the original fetch timestamp. Cached observations
+  retain the source timestamp so the report deduplicates them and orders changes
+  by fetch time. Schedule fingerprints exclude calculated live status and are
+  sorted by asset ID. Changes count observed revisions, not all upstream edits.
+
+After deploying, retain/export seven days of container logs from every replica
+using the deployment's log collector. The code emits events continuously; the
+retention period is controlled by Azure logging, not this application. It does
+not create or schedule a separate monitoring task. Summarize a JSONL export:
+
+```bash
+pnpm exec tsx scripts/upstream-report.ts /path/to/container-logs.jsonl \
+  --since=2026-09-15T00:00:00Z --until=2026-09-22T00:00:00Z
+```
+
+Omit the file to read stdin, or omit dates for the last seven days. Plain log
+lines and JSONL `Log_s`/`message` envelopes are supported. Output contains total
+network attempts and per-purpose status/failure counts, bytes, cache outcomes,
+requests/day and requests/hour across the requested interval, and observed
+content changes. A missing/partial/duplicate log export cannot establish true
+production totals; the report shows the observed time range as well.
+
+Visitor savings depend on traffic concentration: repeat visits inside a five-
+minute window share the same two lookups, while a meeting visited only once
+saves none. Six waiting language tracks share one readiness probe instead of
+six (83% fewer); single-language meetings see no readiness-probe reduction.
+Pacing changes burstiness, not the nominal scheduled daily request budget above.

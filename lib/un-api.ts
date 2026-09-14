@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { UPSTREAM_USER_AGENT } from "./upstream-identity";
+import { upstreamFetch, observeUpstreamContent } from "./upstream-http";
 
 import {
   getVideoByAssetId,
@@ -342,13 +342,12 @@ export async function fetchVideosForDate(
   const yesterday = formatDate(new Date(Date.now() - 86400000));
   const revalidate = date >= today ? 300 : date === yesterday ? 3600 : 86400;
 
-  const response = await fetch(
+  const response = await upstreamFetch(
     `https://webtv.un.org/${locale}/schedule/${date}`,
-    {
-      headers: { "User-Agent": UPSTREAM_USER_AGENT },
-      next: { revalidate },
-    },
+    {},
+    { purpose: "webtv_schedule", cacheSeconds: revalidate },
   );
+  if (!response.ok) throw new Error(`WebTV schedule HTTP ${response.status}`);
 
   const html = await response.text();
   const videos: Video[] = [];
@@ -457,6 +456,20 @@ export async function fetchVideosForDate(
     });
   }
 
+  observeUpstreamContent(
+    "webtv_schedule",
+    `${locale}/${date}`,
+    videos
+      .map(({ id, title, category, scheduledTime, duration }) => ({
+        id,
+        title,
+        category,
+        scheduledTime,
+        duration,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+    response.headers.get("x-transcripts-observed-at"),
+  );
   return videos;
 }
 
@@ -660,15 +673,23 @@ export async function fetchAssetPage(
 ): Promise<{ status: number; html: string | null }> {
   const url = `https://webtv.un.org/en/asset/${assetId}`;
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": UPSTREAM_USER_AGENT },
-      // Removal sweeps need a current verdict; visitor metadata can be cached.
-      ...(options.fresh
-        ? { cache: "no-store" as const }
-        : { next: { revalidate: 3 * 3600 } }),
-    });
+    const response = await upstreamFetch(
+      url,
+      {},
+      {
+        purpose: options.fresh ? "webtv_removal" : "webtv_metadata",
+        cacheSeconds: options.fresh ? 0 : 3 * 3600,
+      },
+    );
     if (!response.ok) return { status: response.status, html: null };
-    return { status: response.status, html: await response.text() };
+    const html = await response.text();
+    observeUpstreamContent(
+      options.fresh ? "webtv_removal" : "webtv_metadata",
+      assetId,
+      parseVideoMetadata(html),
+      response.headers.get("x-transcripts-observed-at"),
+    );
+    return { status: response.status, html };
   } catch {
     return { status: 0, html: null }; // network error → unknown liveness
   }
