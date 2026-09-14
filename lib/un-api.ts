@@ -361,8 +361,10 @@ export async function fetchVideosForDate(
     timezoneMap.set(nid, timestamp);
   }
 
+  // WebTV can publish meetings with an empty category heading (e.g. CED).
+  // Category is optional metadata, not a prerequisite for discovery.
   const videoBlockPattern = new RegExp(
-    `<h6[^>]*class="text-primary"[^>]*>([^<]+)<\\/h6>[\\s\\S]*?<h4[^>]*>[\\s\\S]*?href="\\/${locale}\\/asset\\/([^"]+)"[^>]*>[\\s\\S]*?<div class="field__item">([^<]+)<\\/div>`,
+    `<h6[^>]*class="text-primary"[^>]*>([^<]*)<\\/h6>[\\s\\S]*?<h4[^>]*>[\\s\\S]*?href="\\/${locale}\\/asset\\/([^"]+)"[^>]*>[\\s\\S]*?<div class="field__item">([^<]+)<\\/div>`,
     "g",
   );
 
