@@ -3,7 +3,7 @@
 # Only `${CRON_SECRET}` is expanded; every other `$`-prefixed token
 # (none currently used) would also be expanded if present.
 #
-# Schedules MUST match the documentation in docs/azure-deployment.md. The
+# Schedules are documented in docs/webtv-kaltura.md. The
 # corresponding HTTP handlers live in app/api/cron/*/route.ts; each
 # authenticates `Authorization: Bearer ${CRON_SECRET}` and 401s otherwise.
 #
@@ -14,7 +14,10 @@
 # docker/entrypoint.sh, which Docker captures as the container's stdout.
 
 */5 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/process-scheduled
-*/15 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/sync-videos
+*/30 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/sync-videos
+5 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/sync-videos?range=tomorrow"
+10 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/reap-removed?scope=today"
+20 2 * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/reap-removed?scope=other"
 7 */6 * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" "http://127.0.0.1:3000/api/cron/sync-videos?range=far"
 0 */6 * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/check-pv
 */5 * * * * root curl -fsSL -H "Authorization: Bearer ${CRON_SECRET}" http://127.0.0.1:3000/api/cron/send-transcript-notifications

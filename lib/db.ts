@@ -1790,7 +1790,12 @@ const REMOVAL_COLUMN: Record<RemovalSource, string> = {
  * not-yet-removed rows so the reaper can both flag removals and clear false
  * positives. The per-source timestamps let the caller skip no-op updates.
  */
-export async function getRemovalCandidates(lookbackDays: number): Promise<
+export type RemovalScope = "all" | "today" | "other";
+
+export async function getRemovalCandidates(
+  lookbackDays: number,
+  scope: RemovalScope = "all",
+): Promise<
   Array<{
     asset_id: string;
     entry_id: string;
@@ -1804,6 +1809,7 @@ export async function getRemovalCandidates(lookbackDays: number): Promise<
          FROM webtv.videos
         WHERE entry_id IS NOT NULL
           AND last_seen >= CURRENT_DATE - ?::int
+          ${scope === "today" ? "AND date = CURRENT_DATE" : scope === "other" ? "AND date IS DISTINCT FROM CURRENT_DATE" : ""}
         ORDER BY date DESC NULLS LAST`,
       [lookbackDays],
     ),

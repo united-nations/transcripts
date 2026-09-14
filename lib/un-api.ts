@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { UPSTREAM_USER_AGENT } from "./upstream-identity";
 
 import {
   getVideoByAssetId,
@@ -344,6 +345,7 @@ export async function fetchVideosForDate(
   const response = await fetch(
     `https://webtv.un.org/${locale}/schedule/${date}`,
     {
+      headers: { "User-Agent": UPSTREAM_USER_AGENT },
       next: { revalidate },
     },
   );
@@ -654,11 +656,16 @@ function isEmptyMetadata(metadata: VideoMetadata): boolean {
  */
 export async function fetchAssetPage(
   assetId: string,
+  options: { fresh?: boolean } = {},
 ): Promise<{ status: number; html: string | null }> {
   const url = `https://webtv.un.org/en/asset/${assetId}`;
   try {
     const response = await fetch(url, {
-      next: { revalidate: 3600 }, // 1 hour cache
+      headers: { "User-Agent": UPSTREAM_USER_AGENT },
+      // Removal sweeps need a current verdict; visitor metadata can be cached.
+      ...(options.fresh
+        ? { cache: "no-store" as const }
+        : { next: { revalidate: 3 * 3600 } }),
     });
     if (!response.ok) return { status: response.status, html: null };
     return { status: response.status, html: await response.text() };
@@ -692,10 +699,13 @@ export async function getVideoMetadata(
   // `field__label` markup and legitimately parse empty. If the block is there
   // but nothing came out, the markup drifted and the extractors need updating.
   if (isEmptyMetadata(metadata) && html.includes("field__label")) {
-    Sentry.captureMessage("WebTV metadata parsed empty despite metadata block", {
-      level: "warning",
-      extra: { assetId, url, htmlLength: html.length },
-    });
+    Sentry.captureMessage(
+      "WebTV metadata parsed empty despite metadata block",
+      {
+        level: "warning",
+        extra: { assetId, url, htmlLength: html.length },
+      },
+    );
   }
 
   return metadata;

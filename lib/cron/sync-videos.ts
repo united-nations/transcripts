@@ -10,9 +10,8 @@ import {
 } from "@/lib/db";
 import { matchFeeds } from "@/lib/feeds";
 import { backfillDurations } from "@/lib/duration-backfill";
-import { reapRemovedVideos } from "@/lib/removed-videos";
 
-export type SyncVideosRange = "near" | "far";
+export type SyncVideosRange = "near" | "tomorrow" | "far";
 
 export type SyncVideosResult =
   | { skipped: "lock_held" }
@@ -31,16 +30,10 @@ export type SyncVideosResult =
  * entry IDs, and auto-schedule transcription for newly-seen videos matching
  * enabled feeds.
  *
- * Two-tier scrape:
- * - "near" (default, every 15 min): tomorrow + today + the last 2 days. Also
- *   runs duration-backfill over the last 30 days.
- * - "far" (every 6 hours): T+2 through T+7. Picks up future meetings WebTV
- *   publishes more than a day in advance, without burdening the 15-min loop.
- *   Also runs removed-video reaping (Kaltura + WebTV) over the last 30 days —
- *   its per-asset WebTV GETs would be wasteful at the 15-min cadence.
- *
- * The two ranges hold distinct advisory locks (`sync-videos-near` /
- * `sync-videos-far`) so they can overlap without skipping each other.
+ * - "near" (every 30 min): today and the last 2 days, plus duration backfill.
+ * - "tomorrow" (hourly): tomorrow in all six locales.
+ * - "far" (every 6 hours): T+2 through T+7.
+ * Each range holds its own advisory lock. Removal checks have a separate cron.
  */
 export async function runSyncVideos(
   range: SyncVideosRange = "near",
@@ -49,14 +42,15 @@ export async function runSyncVideos(
     const today = new Date();
     const dates: string[] = [];
     if (range === "near") {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      dates.push(formatDate(tomorrow));
       for (let i = 0; i < 3; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
         dates.push(formatDate(date));
       }
+    } else if (range === "tomorrow") {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      dates.push(formatDate(tomorrow));
     } else {
       for (let i = 2; i <= 7; i++) {
         const date = new Date(today);
@@ -113,8 +107,8 @@ export async function runSyncVideos(
     }
 
     let durationsBackfilled = 0;
-    let videosRemoved = 0;
-    let videosRestored = 0;
+    const videosRemoved = 0;
+    const videosRestored = 0;
     if (range === "near") {
       try {
         const r = await backfillDurations({ apply: true, lookbackDays: 30 });
@@ -126,33 +120,6 @@ export async function runSyncVideos(
         );
         Sentry.captureException(err, {
           tags: { pipeline: "sync_videos", kind: "duration_backfill" },
-        });
-      }
-    }
-
-    if (range === "far") {
-      // Removed-video reaping rides the 6-hourly far sweep, not the 15-min near
-      // one: it does one WebTV asset-page GET per candidate (~hundreds), which
-      // would be wasteful at 15-min cadence. Real-time detection for pages a
-      // visitor actually hits is handled lazily on the detail render; this pass
-      // is the backstop that also cleans listings for videos nobody opened.
-      try {
-        const r = await reapRemovedVideos({ apply: true, lookbackDays: 30 });
-        videosRemoved = r.removed;
-        videosRestored = r.restored;
-        if (r.webtvAborted) {
-          Sentry.captureMessage("WebTV reap circuit breaker tripped", {
-            level: "warning",
-            tags: { pipeline: "sync_videos", kind: "reap_removed" },
-          });
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[sync-videos:${range}] Removed-video reap failed: ${msg}`,
-        );
-        Sentry.captureException(err, {
-          tags: { pipeline: "sync_videos", kind: "reap_removed" },
         });
       }
     }

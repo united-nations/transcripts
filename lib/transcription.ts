@@ -1,3 +1,4 @@
+import { UPSTREAM_USER_AGENT } from "./upstream-identity";
 import { randomUUID } from "crypto";
 import * as Sentry from "@sentry/nextjs";
 
@@ -55,7 +56,10 @@ async function fetchKalturaFlavors(kalturaId: string) {
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": UPSTREAM_USER_AGENT,
+      },
       body: JSON.stringify({
         "1": {
           service: "session",

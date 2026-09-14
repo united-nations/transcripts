@@ -1,3 +1,4 @@
+import { UPSTREAM_USER_AGENT } from "./upstream-identity";
 import { updateVideoEntryId } from "./db";
 import {
   extractKalturaId,
@@ -18,7 +19,10 @@ export async function resolveEntryIdFromKaltura(
       "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": UPSTREAM_USER_AGENT,
+        },
         body: JSON.stringify({
           "1": {
             service: "session",
@@ -68,7 +72,10 @@ export async function fetchKalturaDurations(
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": UPSTREAM_USER_AGENT,
+      },
       body: JSON.stringify({
         "1": {
           service: "session",
@@ -124,7 +131,10 @@ export async function fetchKalturaEntryStatuses(
     "https://cdnapisec.kaltura.com/api_v3/service/multirequest",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": UPSTREAM_USER_AGENT,
+      },
       body: JSON.stringify({
         "1": {
           service: "session",

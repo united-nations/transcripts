@@ -167,7 +167,7 @@ Video page
 - `pnpm sync-videos` (`scripts/sync-videos.ts`) — scrapes past N days (default 7), upserts to the database, resolves entry IDs. Contains its own inline copy of the Kaltura resolution logic.
 - `pnpm fetch-video-metadata` (`scripts/fetch-video-metadata.ts`) — dumps stored video records to `analysis/video-metadata.json`. Despite the name, does **not** call the per-video metadata scraper.
 - `pnpm backfill-slugs` / `pnpm fix-slugs` — populate or repair the `slug` column when the meeting-slug logic changes.
-- `/api/cron/sync-videos` — Vercel cron (every 15 min) calls the same scraper logic against the live DB, so the script is mostly used for ad-hoc backfills.
+- `/api/cron/sync-videos` — Azure container cron calls the same scraper logic against the live DB; see the cadence below. The script is mostly used for ad-hoc backfills.
 
 ## Limitations & Gotchas
 
@@ -175,3 +175,87 @@ Video page
 - Rich per-video metadata (summary, topics, related documents, speakers) is fetched on demand and never persisted.
 - `getVideoBySlug` falls back to looking up by `asset_id` if no slug match — useful during the slug-migration window.
 - Status calculation (`scheduled`/`live`/`finished`) works around UN Web TV's broken timezone handling by stripping timezones and appending `Z` — see `lib/timezone.ts`.
+
+## Upstream request budget (14 September 2026)
+
+All server-side Web TV schedule/asset requests and Kaltura metadata API requests
+identify themselves as `Transcripts-Metadata-Sync/1.0 (+https://transcripts.un.org/)`.
+The ad-hoc category harvester uses the same identity. Browser player requests
+and media downloads are separate from these metadata calls.
+
+The Azure schedules in `docker/crontab.template` are:
+
+- `sync-videos` (near): every 30 minutes, today and the previous two days.
+  Historical fetch TTLs remain one hour for yesterday and 24 hours for T-2.
+  Duration backfill also runs here.
+- `sync-videos?range=tomorrow`: hourly at minute 5, all six languages.
+- `sync-videos?range=far`: every six hours at minute 7, T+2 through T+7.
+- `reap-removed?scope=today`: hourly at minute 10, today's meetings only.
+- `reap-removed?scope=other`: daily at 02:20 UTC, other records seen within
+  30 days, including future/undated records and previously removed records.
+
+Removal scopes are disjoint and have separate advisory locks. Sweeps request
+fresh Web TV pages (`cache: no-store`), so visitor metadata's three-hour TTL
+cannot delay the removal verdict. Normal page rendering and meeting JSON
+exports share a three-hour asset-page cache per Next.js instance. They still
+perform the existing lazy removal check; cached HTML can lag upstream, while
+persisted removal flags hide a meeting immediately on subsequent DB reads.
+
+A read-only database snapshot contained 409 removal candidates, 9 dated today,
+and 34 missing-duration candidates. These are capacity estimates, not measured
+production traffic; cache state, replicas, errors, and changing record counts
+alter the totals. The earlier investigation had 408 removal candidates.
+
+| Web TV source | Previous requests/day | Revised requests/day |
+| --- | ---: | ---: |
+| Today's schedules | 576 | 288 |
+| Tomorrow's schedules | 576 | 144 |
+| Yesterday / T-2 schedules, with working cache | ~150 | ~150 |
+| T+2 through T+7 schedules | 144 | 144 |
+| Removal sweeps, using the same 409-row snapshot | 1,636 | 616 |
+| Total scheduled | ~3,082 | ~1,342 |
+
+Revised removal formula: `24 * today + other = 24 * 9 + 400`.
+This is approximately 56% less scheduled Web TV traffic: 56/hour or 0.93/minute,
+versus 128/hour or 2.14/minute. These are daily averages, not peak rates.
+Visitor/reaper cache overlap can lower the previous estimate. Cache TTL expiry
+and stale-while-revalidate can also shift the nominal schedule request counts.
+Without working caching, scheduled fetch volume is 4,084/day before versus
+1,768/day after (57% less), using this same snapshot.
+
+60,000 page views per 30-day month = 2,000/day. Listing/search pages use only
+the DB. Each meeting render attempts one Web TV asset fetch; cache hits do not
+reach Web TV. Three hours instead of one reduces refresh opportunities for a
+continuously popular asset from ~24/day to ~8/day per instance (up to 67% fewer).
+It does not reduce requests for assets visited once. Exact visitor savings need
+actual cache-miss and page-mix telemetry; bot/API traffic may not be in page views.
+
+Kaltura HTTP requests (a multirequest is ONE HTTP request, containing 2–3 API
+operations):
+
+- A normal interactive meeting visit causes one uncached entry-status request
+  on server render and one uncached flavor/language request on client mount.
+  At 2,000 meeting views/day this is about 4,000 API requests/day before player
+  traffic, language refreshes, or transcription. Actual volume depends on the
+  fraction of views that are meeting pages. This behavior is unchanged.
+- Missing-duration backfill: 100 entries/request. With 34 candidates, 96/day
+  previously versus 48/day now, if those candidates persist.
+- Removal status batches: 100 entries/request. Previously `4 * ceil(409/100)`
+  = 20/day; now `24 * ceil(9/100) + ceil(400/100)` = 28/day. The small increase
+  buys hourly detection for today's meetings. These two maintenance sources
+  together fall from 116 to 76/day (34%).
+- New entry resolution: one request per uncached/unresolved video per sync
+  attempt; successful resolutions are persisted. No extra lookup for cached IDs.
+- Scheduled transcription: every five minutes, one flavor request per eligible
+  waiting transcript/language. Future bookings are skipped; live or converting
+  recordings are retried. For P continuously waiting eligible rows, this is
+  12P/hour, plus a further lookup when submitting transcription. Counts of all
+  scheduled rows alone would overestimate this traffic.
+- Realignment: hourly duration batches of up to 400 unique entries, plus
+  on-demand metadata/media calls for actual realignments. Player manifests,
+  segments, thumbnails, and audio downloads are additional media traffic.
+
+Follow-up opportunities for Kaltura: cache page-only status/language lookups
+briefly and deduplicate flavor probes across languages of the same meeting per
+worker tick. Keep recording readiness probes fresh, and cache only upstream
+language availability (not the DB-derived transcript status returned beside it).
