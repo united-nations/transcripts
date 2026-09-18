@@ -18,8 +18,8 @@ export async function GET() {
 #   /{locale}/meetings.json?q={query}&ft=1
 # Each hit returns the speaker, a snippet, and a link to the exact moment.
 #
-# Cite a moment: append ?t={seconds} to any meeting page URL
-#   /en/sc/10175?t=5025
+# Cite a moment: append ?t={m:ss} or ?t={h:mm:ss} (legacy seconds also accepted) to any meeting page URL
+#   /en/sc/10175?t=1:23:45
 
 User-agent: *
 Allow: /

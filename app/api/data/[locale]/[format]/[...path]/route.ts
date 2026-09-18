@@ -1,4 +1,5 @@
 // Public data API: meeting list and single-meeting detail as JSON or plain text.
+import { formatTimestamp } from "@/lib/timestamp-url";
 import { routing } from "@/i18n/routing";
 import {
   getCachedTranscriptedEntries,
@@ -332,7 +333,7 @@ async function handleMeeting(
       transcript.language_code !== locale
         ? `lang=${transcript.language_code}&`
         : "";
-    return `/${locale}/${url}?${langQuery}t=${t}`;
+    return `/${locale}/${url}?${langQuery}t=${formatTimestamp(t)}`;
   };
 
   // Timestamps are already realignment-shifted by the display getter
@@ -660,7 +661,7 @@ async function handleList(
                 // marking truncation — full statements live in jsonUrl.
                 text: `${hit.leading ? "… " : ""}${hit.text}${hit.trailing ? " …" : ""}`,
                 start: hit.startSeconds,
-                pageUrl: `/${locale}/${url}?t=${hit.startSeconds}`,
+                pageUrl: `/${locale}/${url}?t=${formatTimestamp(hit.startSeconds)}`,
               })),
             },
           }

@@ -1,3 +1,5 @@
+import { serializeMeetingParams } from "./timestamp-url";
+
 /**
  * Update a single query-string param on the current URL in place, preserving
  * every other param (and the hash), WITHOUT triggering a Next.js navigation or
@@ -17,11 +19,18 @@
  * stays clean and only carries the params the user explicitly deviated on.
  */
 export function setUrlParam(key: string, value: string | undefined): void {
+  setUrlParams({ [key]: value });
+}
+
+/** Apply related filter changes in one history update. */
+export function setUrlParams(values: Record<string, string | undefined>): void {
   if (typeof window === "undefined") return;
   const params = new URLSearchParams(window.location.search);
-  if (!value) params.delete(key);
-  else params.set(key, value);
-  const qs = params.toString();
+  for (const [key, value] of Object.entries(values)) {
+    if (!value) params.delete(key);
+    else params.set(key, value);
+  }
+  const qs = serializeMeetingParams(params);
   const url =
     window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
   window.history.replaceState(null, "", url);

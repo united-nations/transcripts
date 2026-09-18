@@ -237,7 +237,6 @@ export function VideoPageClient({
                       const newTopic =
                         selectedTopic === topic.key ? null : topic.key;
                       setSelectedTopic(newTopic);
-                      if (newTopic) setTopicCollapsed(true);
                     }}
                     className={`inline-block rounded-full border px-2 py-0.5 text-left text-xs transition-all ${
                       selectedTopic === topic.key

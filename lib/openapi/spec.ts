@@ -142,13 +142,13 @@ export function buildSpec(): Record<string, unknown> {
         "`ga/79/21`). Append `.json` or `.txt` to any meeting page URL to " +
         "get the same content as data. Videos without a document symbol are " +
         "addressable at `/{locale}/asset/{asset_id}`.\n\n" +
-        "Citing a moment: every meeting page URL accepts `?t=<seconds>` " +
-        "(whole seconds, e.g. `/en/sc/10175?t=5025`), which opens the page " +
+        "Citing a moment: every meeting page URL accepts `?t=<m:ss>`, `?t=<h:mm:ss>`, or `?t=<seconds>` " +
+        "(e.g. `/en/sc/10175?t=1:23:45`), which opens the page " +
         "with the video seeked to that moment and the matching statement " +
         "highlighted. The sentence timings in a transcript's `.json` " +
         "(`start`/`end`, in seconds) are exactly what you put in `?t=`, so " +
-        "any statement can be turned into a citation link. Only a bare " +
-        "number is parsed — `?t=90s` or `?t=1:30` are ignored.\n\n" +
+        "any statement can be turned into a citation link. Generated links use " +
+        "clock timestamps; malformed values such as `?t=90s` are ignored.\n\n" +
         "Transcripts available through this API are created by using " +
         "automatic speech recognition and are not official records nor " +
         "official documents of the United Nations. Official records and " +

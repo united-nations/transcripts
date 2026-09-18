@@ -1,5 +1,6 @@
 // All content-search hits inside one meeting — backs the "show all N
 // matches" expansion of the schedule's transcript-search sub-rows.
+import { formatTimestamp } from "@/lib/timestamp-url";
 import { NextRequest, NextResponse } from "next/server";
 import { getStatementMatches, getVideoByAssetId } from "@/lib/db";
 import { videoUrl } from "@/lib/video-url";
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
   const hits = slug
     ? result.hits.map((hit) => ({
         ...hit,
-        pageUrl: `/${language}/${slug}?t=${hit.startSeconds}`,
+        pageUrl: `/${language}/${slug}?t=${formatTimestamp(hit.startSeconds)}`,
       }))
     : result.hits;
 

@@ -159,7 +159,7 @@ across every meeting in the result):
             },
             "text": "... snippet centred on the first match; leading/trailing ellipses mark truncation ...",
             "start": 5025,
-            "pageUrl": "/en/sc/10175?t=5025"
+            "pageUrl": "/en/sc/10175?t=1:23:45"
           }
         ]
       }
@@ -182,10 +182,10 @@ across every meeting in the result):
 
 ## Citing a moment: \`?t=\`
 
-Every meeting page URL accepts \`?t={seconds}\`:
+Every meeting page URL accepts clock timestamps or seconds:
 
 \`\`\`
-https://transcripts.un.org/en/sc/10175?t=5025
+https://transcripts.un.org/en/sc/10175?t=1:23:45
 \`\`\`
 
 It opens the meeting with the video seeked to that second (paused) and the
@@ -193,14 +193,16 @@ statement being spoken there scrolled to and highlighted. This is the citation
 primitive of the site — it is how you point a reader at a specific sentence of a
 specific speech rather than at an 8-hour recording.
 
-- The value is **whole seconds as a bare number**. \`?t=90\` works; the YouTube-style
-  \`?t=90s\` and the clock-style \`?t=1:30\` are **not** parsed and are silently
-  ignored (you land at the start of the video).
+- Accepts \`m:ss\` (\`?t=3:50\`), \`h:mm:ss\` (\`?t=4:15:59\`),
+  or legacy seconds (\`?t=230\`). Generated links use clock timestamps.
+  Malformed values such as \`?t=90s\` or \`?t=3:60\` are ignored.
 - The \`start\`/\`end\` values on every sentence in a transcript \`.json\` are in the
   same unit (seconds), so any sentence can be turned into a citation link:
   \`{pageUrl}?t={Math.ceil(sentence.start)}\`.
 - The \`.txt\` transcript prints \`[H:MM:SS]\` timecodes next to each speaker. Those
-  are for humans — convert to seconds before putting them in \`?t=\`.
+  can also be used directly in \`?t=\`.
+- Share a topic filter with \`?topic=<topic-key>\` (highlights only). Add
+  \`&topicMode=all\` for all content with highlights. These also work alongside \`t\`.
 - Add \`&lang=XX\` alongside \`t\` if you are citing a transcript track other than
   the one the URL locale implies.
 
@@ -267,7 +269,7 @@ Returns full structured data with timestamps, speaker mappings, topics, and word
       {
         "statement_number": 1,
         "start": 12.0,
-        "pageUrl": "/en/sc/10175?t=12",
+        "pageUrl": "/en/sc/10175?t=0:12",
         "speaker": {
           "name": "...",
           "affiliation": "XXX",

@@ -100,10 +100,10 @@ locale landing page. Each match always carries its exact meeting page as
 
 ### Timestamp deeplinks (`?t=`)
 
-Any meeting **page** URL accepts `?t={seconds}`:
+Any meeting **page** URL accepts clock timestamps or legacy seconds:
 
 ```
-/en/sc/10175?t=5025
+/en/sc/10175?t=1:23:45
 ```
 
 It opens the page with the player seeked to that second (paused — browsers block
@@ -111,14 +111,15 @@ unmuted autoplay without a gesture) and the statement spoken there scrolled to
 and flashed. This is the site's citation primitive: it addresses a sentence of a
 speech rather than an eight-hour recording.
 
-- **Whole seconds, bare number.** Parsed with `Number()` in
-  `components/meeting-state/meeting-state.tsx`, floored, and accepted only when
-  finite and `> 0`. The YouTube-style `?t=90s` and clock-style `?t=1:30` parse to
-  `NaN` and are **silently ignored** — the visitor lands at the start with no error.
+- **Clock timestamps or seconds.** Accepts `?t=3:50`, `?t=4:15:59`, or
+  `?t=230`. Generated links use `m:ss` below an hour and `h:mm:ss` above it.
+  Zero is valid. Numeric fractions are floored; generated statement links round
+  up to avoid highlighting the preceding statement. Malformed values such as
+  `?t=90s`, negative values, or `?t=3:60` are silently ignored.
 - **Same unit as the data.** Sentence `start`/`end` in `/{locale}/{slug}.json` are
   seconds, so `?t=${Math.ceil(sentence.start)}` turns any sentence into a citation.
-  The `.txt` transcript prints `[H:MM:SS]` timecodes for humans — those need
-  converting first.
+  The `.txt` transcript prints `[H:MM:SS]` timecodes, which can be used directly
+  without the brackets.
 - **Inbound only.** The app never writes `t` back to the address bar; the
   per-statement copy-link buttons in the transcript compose it explicitly, so the
   URL doesn't drift to a random moment as you scroll. Combine with `?lang=XX` when
@@ -127,6 +128,17 @@ speech rather than an eight-hour recording.
 Produced server-side at `matches.statements[].pageUrl` (below), and client-side by
 the copy-link anchor in `components/transcription-panel.tsx` and the search hit
 rows in `components/transcript-match-rows.tsx`.
+
+### Topic filters (`?topic=`)
+
+Use `?topic=<topic-key>` to show only statements matching a topic. Add
+`&topicMode=all` to show all content with that topic highlighted. Topic keys come
+from the transcript's `topics` dictionary. Unknown keys are ignored once the
+transcript loads. Selecting or clearing a topic updates the URL without reloading;
+clearing removes both parameters. Copied statement links preserve the topic view.
+
+Topic filters combine with timestamps and language selection, for example
+`?topic=nuclear_risk&t=3:50&lang=fr` (when `nuclear_risk` exists on the page).
 
 ## Search & browse meetings
 
@@ -204,7 +216,7 @@ all result meetings):
             },
             "text": "… snippet centered on the first match, ellipses mark truncation …",
             "start": 5025,
-            "pageUrl": "/en/sc/10175?t=5025"
+            "pageUrl": "/en/sc/10175?t=1:23:45"
           }
         ]
       }
@@ -313,7 +325,7 @@ language differs from the URL locale.
       {
         "statement_number": 1,
         "start": 12.0,
-        "pageUrl": "/en/sc/10175?t=12",
+        "pageUrl": "/en/sc/10175?t=0:12",
         "speaker": {
           "name": "...",
           "affiliation": "XXX",

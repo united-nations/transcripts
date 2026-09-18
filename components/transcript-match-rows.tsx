@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTimestamp } from "@/lib/timestamp-url";
 import { useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -88,7 +89,7 @@ export function TranscriptMatchRows({
             <td className="px-0 py-2" />
             <td className="px-4 py-2 align-top" colSpan={2}>
               <Link
-                href={`/${slug}?t=${hit.startSeconds}`}
+                href={`/${slug}?t=${formatTimestamp(hit.startSeconds)}`}
                 className="group block"
               >
                 {attribution && (

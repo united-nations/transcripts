@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTimestamp, serializeMeetingParams } from "@/lib/timestamp-url";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -441,8 +442,12 @@ export function TranscriptionPanel({
     // CEIL, not floor: segment starts are fractional seconds, and the
     // arrival highlight picks the statement CONTAINING t — flooring lands a
     // fraction before the start and lights up the previous statement.
-    params.set("t", String(Math.max(0, Math.ceil(seconds))));
-    return `${window.location.origin}/${locale}/${video.slug}?${params.toString()}`;
+    params.set("t", formatTimestamp(seconds));
+    if (selectedTopic) {
+      params.set("topic", selectedTopic);
+      if (!topicCollapsed) params.set("topicMode", "all");
+    }
+    return `${window.location.origin}/${locale}/${video.slug}?${serializeMeetingParams(params)}`;
   };
 
   // Lazy word-level timestamps. The /api/transcripts/check fast path strips

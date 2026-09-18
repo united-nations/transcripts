@@ -18,7 +18,8 @@ import type {
   LanguageOption,
   TranscriptionPanelData,
 } from "@/components/transcription-panel";
-import { setUrlParam } from "@/lib/url-params";
+import { parseTimestamp } from "@/lib/timestamp-url";
+import { setUrlParam, setUrlParams } from "@/lib/url-params";
 
 /**
  * State shared between the meeting page's chrome (VideoPageClient: language
@@ -55,7 +56,7 @@ interface MeetingState {
   selectedTopic: string | null;
   setSelectedTopic: Dispatch<SetStateAction<string | null>>;
 
-  /** Collapsed/expanded state of the topic legend in the sidebar. */
+  /** Whether to show only topic matches or all content with highlights. */
   topicCollapsed: boolean;
   setTopicCollapsed: Dispatch<SetStateAction<boolean>>;
 
@@ -69,7 +70,7 @@ interface MeetingState {
   player: PlayerHandle | undefined;
   setPlayer: Dispatch<SetStateAction<PlayerHandle | undefined>>;
 
-  /** Timestamp deeplink target (`?t=<seconds>`), or null. Read once on
+  /** Timestamp deeplink target (`?t=<seconds or clock>`), or null. Read once on
    *  mount; the panel uses it to flash the statement the link points at. */
   initialSeekSeconds: number | null;
 
@@ -120,25 +121,49 @@ export function MeetingStateProvider({
   const [availableLanguages, setAvailableLanguages] = useState<
     LanguageOption[]
   >([]);
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
-  const [topicCollapsed, setTopicCollapsed] = useState(true);
+
   const [panelData, setPanelData] = useState<TranscriptionPanelData | null>(
     null,
   );
   const [player, setPlayer] = useState<PlayerHandle | undefined>();
 
-  // Timestamp deeplink: `?t=<integer seconds>` positions the player (paused —
+  // URL is the source of truth, including browser back/forward navigation.
+  // Wait for the panel before deciding whether a requested key exists.
+  const requestedTopic = searchParams.get("topic") || null;
+  const topicsReady =
+    panelData && !panelData.checking && panelData.statements !== null;
+  const selectedTopic =
+    requestedTopic &&
+    (!topicsReady || Object.hasOwn(panelData.topics, requestedTopic))
+      ? requestedTopic
+      : null;
+  const topicCollapsed =
+    !selectedTopic || searchParams.get("topicMode") !== "all";
+  const setSelectedTopic = useCallback<Dispatch<SetStateAction<string | null>>>(
+    (value) => {
+      const topic = typeof value === "function" ? value(selectedTopic) : value;
+      setUrlParams({ topic: topic || undefined, topicMode: undefined });
+    },
+    [selectedTopic],
+  );
+  const setTopicCollapsed = useCallback<Dispatch<SetStateAction<boolean>>>(
+    (value) => {
+      const collapsed =
+        typeof value === "function" ? value(topicCollapsed) : value;
+      setUrlParam("topicMode", collapsed ? undefined : "all");
+    },
+    [topicCollapsed],
+  );
+
+  // Timestamp deeplink: `?t=<seconds or clock>` positions the player (paused —
   // browsers block unmuted autoplay without a gesture, and seek-paused is the
   // less jarring landing anyway) at that moment once the player is ready.
   // Read once, like `?lang=`; the app never writes `t` back to the URL — the
   // per-statement copy-link buttons compose it explicitly, so the address bar
   // doesn't drift to a random moment (see TranscriptView).
-  const [initialSeekSeconds] = useState<number | null>(() => {
-    const raw = searchParams.get("t");
-    if (!raw) return null;
-    const parsed = Math.floor(Number(raw));
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  });
+  const [initialSeekSeconds] = useState<number | null>(() =>
+    parseTimestamp(searchParams.get("t")),
+  );
   const initialSeekDone = useRef(false);
   useEffect(() => {
     if (!player || initialSeekSeconds === null || initialSeekDone.current)
@@ -224,7 +249,9 @@ export function MeetingStateProvider({
       selectLanguage,
       availableLanguages,
       selectedTopic,
+      setSelectedTopic,
       topicCollapsed,
+      setTopicCollapsed,
       panelData,
       player,
       initialSeekSeconds,
