@@ -32,26 +32,23 @@ export async function defineTopics(
 > {
   console.log(`  → Defining topics...`);
 
-  // Build context with paragraphs and speakers, excluding moderators/chairs
-  const substantiveStatements = paragraphs
+  // Exclude off-record text before building model context; retain original indices.
+  // Substantiveness is determined from content, not the speaker's role.
+  const visibleStatements = paragraphs
     .map((p, idx) => {
       const speaker = speakerMapping[idx.toString()];
-      const isChair =
-        speaker?.function?.toLowerCase().includes("chair") ||
-        speaker?.function?.toLowerCase().includes("president") ||
-        speaker?.function?.toLowerCase().includes("moderator");
-      return { paragraph: p, index: idx, speaker, isChair };
+      return { paragraph: p, index: idx, speaker };
     })
-    .filter(({ isChair }) => !isChair);
+    .filter(({ speaker }) => !speaker?.is_off_record);
 
-  if (substantiveStatements.length < 2) {
+  if (visibleStatements.length < 2) {
     console.log(
-      `  ℹ Too few non-chair statements (${substantiveStatements.length}), skipping topic analysis`,
+      `  ℹ Too few on-record statements (${visibleStatements.length}), skipping topic analysis`,
     );
     return {};
   }
 
-  const contextParts = substantiveStatements.map(
+  const contextParts = visibleStatements.map(
     ({ paragraph, index, speaker }) => {
       const speakerLabel = speaker?.name || speaker?.affiliation || "Unknown";
       return `[${index}] ${speakerLabel}: ${paragraph.text}`;
@@ -66,7 +63,7 @@ export async function defineTopics(
     model: getAnalysisModel(),
     requestMeta: {
       paragraph_count: paragraphs.length,
-      substantive_statements: substantiveStatements.length,
+      substantive_statements: visibleStatements.length,
     },
     request: {
       model: getAnalysisModel(),
@@ -77,9 +74,11 @@ export async function defineTopics(
           content: `You are analyzing a UN proceedings transcript to identify main discussion topics.
 
 TASK:
-- Identify 5-10 distinct topics discussed in the transcript
+- Identify 0-10 distinct topics discussed in the transcript
 - Each topic must appear in at least 2 different statements by different speakers
 - Focus on substantive policy topics, not procedural matters
+- Judge eligibility by content, regardless of speaker role: chairs, presidents, and moderators can make substantive statements or announcements
+- Do not invent or split topics to fill a quota; return an empty array when no topics meet the criteria
 - For each topic provide:
   - key: kebab-case slug (2-4 words, always ASCII, e.g., "climate-finance")
   - label: Human-readable title in the OUTPUT LANGUAGE (proper case, spaces, native script)
@@ -97,7 +96,7 @@ EXAMPLES (illustrative only — match the OUTPUT LANGUAGE in your response):
 - key: "sdg-implementation", label: "SDG Implementation", description: "Progress on Sustainable Development Goals"
 
 OUTPUT:
-- Return 5-10 topics as an array
+- Return 0-10 topics as an array
 - Each topic must have key, label, and description fields`,
         },
         {

@@ -2,7 +2,7 @@ import { AzureOpenAI } from "openai";
 import { z } from "zod";
 import { zodResponseFormat } from "openai/helpers/zod";
 import Bottleneck from "bottleneck";
-import type { SpeakerInfo, SpeakerMapping } from "@/lib/speakers";
+import type { SpeakerMapping } from "@/lib/speakers";
 import {
   trackOpenAIChatCompletion,
   UsageOperations,
@@ -32,19 +32,19 @@ export async function tagSentencesWithTopics(
     .map((key) => `- ${key}: ${topics[key].description}`)
     .join("\n");
 
-  // Build flat list of all sentences with metadata
+  // Build context only from on-record sentences, preserving stored indices.
   interface SentenceWithMeta {
     statementIdx: number;
     paragraphIdx: number;
     sentenceIdx: number;
     text: string;
-    speaker: SpeakerInfo;
   }
 
   const allSentences: SentenceWithMeta[] = [];
 
   statements.forEach((stmt, stmtIdx) => {
     const speaker = speakerMapping[stmtIdx.toString()];
+    if (speaker?.is_off_record) return;
     stmt.paragraphs.forEach((para, paraIdx) => {
       para.sentences.forEach((sent, sentIdx) => {
         allSentences.push({
@@ -52,26 +52,16 @@ export async function tagSentencesWithTopics(
           paragraphIdx: paraIdx,
           sentenceIdx: sentIdx,
           text: sent.text,
-          speaker,
         });
       });
     });
   });
 
-  // Filter out moderator/chair sentences
-  const taggableSentences: Array<{
-    index: number;
-    sentence: SentenceWithMeta;
-  }> = [];
-  allSentences.forEach((sent, idx) => {
-    const isModerator =
-      sent.speaker.function?.toLowerCase().includes("chair") ||
-      sent.speaker.function?.toLowerCase().includes("president") ||
-      sent.speaker.function?.toLowerCase().includes("moderator");
-    if (!isModerator) {
-      taggableSentences.push({ index: idx, sentence: sent });
-    }
-  });
+  // Let the model assess substantive content regardless of speaker role.
+  const taggableSentences = allSentences.map((sentence, index) => ({
+    index,
+    sentence,
+  }));
 
   // Batched tagging with rate-limited concurrency
   const BATCH_SIZE = 15;
@@ -137,7 +127,8 @@ ${topicDescriptions}
 
 TASK:
 - For each numbered sentence, select 0-3 topics that are directly discussed
-- Only tag substantive policy discussions
+- Only tag substantive policy discussions or substantive announcements
+- Judge eligibility by content, regardless of speaker role, including chairs, presidents, and moderators
 - Return empty array if no topics apply or if purely procedural
 - Lines marked [context] are for reference only — do not tag them
 

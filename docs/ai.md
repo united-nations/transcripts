@@ -53,11 +53,11 @@ Kaltura audio URL
        │
        ▼
  3. Topic definition (GPT-5.4)
-       │   5–10 substantive policy topics across the meeting.
+       │   0–10 substantive policy topics from on-record statements.
        │
        ▼
  4. Sentence topic tagging (GPT-5.4-mini, batched, rate-limited)
-       │   0–3 topic keys per non-chair sentence.
+       │   0–3 topic keys per on-record sentence.
        │
        ▼ (on demand only — POST /api/transcripts/[id]/analysis)
  5. Proposition analysis (GPT-5.4)
@@ -110,7 +110,7 @@ Low-confidence splits are discarded.
 **Model:** `gpt-5.4` via Azure OpenAI (structured output)
 **Runs automatically after speaker identification.**
 
-Identifies 5-10 substantive policy topics discussed in the transcript. Each topic must appear in at least 2 different statements by different speakers. Chair/President/Moderator paragraphs are excluded from the input.
+Identifies 0-10 substantive policy topics discussed in the transcript, without filling a minimum quota. Each topic must appear in at least 2 different statements by different speakers. Off-record paragraphs are excluded before constructing prompts. Eligibility is based on substantive content, including announcements, rather than speaker role; chairs, presidents, and moderators are included.
 
 **Output per topic:** `key` (kebab-case ASCII slug, never localized), `label` (human-readable, in transcript source language), `description` (1-2 sentences, in transcript source language).
 
@@ -122,7 +122,7 @@ Identifies 5-10 substantive policy topics discussed in the transcript. Each topi
 **Model:** `gpt-5.4-mini` via Azure OpenAI (structured output, `reasoning_effort: "none"`)
 **Runs immediately after topic definition, batched with rate-limited concurrency.**
 
-Sentences are grouped into batches of 15 and tagged in parallel (up to 20 concurrent requests, rate-limited to 10/sec via Bottleneck). Each non-chair sentence is tagged with 0-3 topic keys from the defined topics.
+Sentences are grouped into batches of 15 and tagged in parallel (up to 20 concurrent requests, rate-limited to 10/sec via Bottleneck). Each on-record sentence is tagged with 0-3 topic keys from the defined topics. Off-record sentences are excluded from both tagging input and preceding-sentence context. Substantive content is eligible regardless of speaker role; purely procedural sentences receive no tags. Original statement indices are retained when applying tags.
 
 ## 6. Proposition analysis (on demand)
 
