@@ -101,9 +101,9 @@ When `kaltura_id != entry_id` **and** the rows are old, three independent proble
 - Yesterday: 1 hour
 - Older: 24 hours
 
-## Per-Video Metadata (On-Demand)
+## Per-Video Asset Metadata
 
-`getVideoMetadata(assetId)` scrapes `https://webtv.un.org/en/asset/{assetId}` and extracts:
+The asset-page parser can extract these fields from `https://webtv.un.org/en/asset/{assetId}`:
 
 | Field | Source |
 |---|---|
@@ -116,7 +116,7 @@ When `kaltura_id != entry_id` **and** the rows are old, three independent proble
 | `corporateName` | Field items under corporate name section |
 | `speakerAffiliation` | Field items under speaker section |
 
-**None of these are stored in the database.** They are fetched on demand only.
+**None of these are stored in the database.** Visitor page and JSON requests return empty rich metadata without fetching WebTV. The scheduled removal reaper still fetches asset pages to check whether videos were unpublished.
 
 ## What Gets Stored (`videos` table)
 
@@ -158,7 +158,7 @@ Search
 
 Video page
   ├─ Video record from DB (lookup by slug, fall back to asset_id)
-  ├─ getVideoMetadata() → on-demand scrape of asset page (not stored)
+  ├─ Rich asset-page metadata is omitted (not stored or fetched on visits)
   └─ entry_id → Kaltura player embed + audio URL for transcription
 ```
 
@@ -172,7 +172,7 @@ Video page
 ## Limitations & Gotchas
 
 - Search uses Postgres FTS + trigram fallback only on `title` / `clean_title`. There is no search across category/body/metadata.
-- Rich per-video metadata (summary, topics, related documents, speakers) is fetched on demand and never persisted.
+- Rich per-video asset metadata (summary, description, related documents, etc.) is not stored or shown. The scheduled removal reaper still probes WebTV asset pages.
 - `getVideoBySlug` falls back to looking up by `asset_id` if no slug match — useful during the slug-migration window.
 - Status calculation (`scheduled`/`live`/`finished`) works around UN Web TV's broken timezone handling by stripping timezones and appending `Z` — see `lib/timezone.ts`.
 

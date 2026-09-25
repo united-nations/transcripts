@@ -35,7 +35,7 @@ import {
   formatTranscriptAsPlainText,
 } from "@/lib/transcript-formatting";
 import { PUBLIC_CORS_HEADERS } from "@/lib/security-headers";
-import { getVideoMetadata, recordToVideo } from "@/lib/un-api";
+import { createEmptyMetadata, recordToVideo } from "@/lib/un-api";
 import { safeDecodePathSegmentsArray } from "@/lib/utils";
 import { videoUrl } from "@/lib/video-url";
 import { parseTranscriptIdentifier } from "@/lib/transcript-availability";
@@ -245,7 +245,7 @@ async function handleMeeting(
           "No transcript available.\n",
       );
     }
-    const metadata = await getVideoMetadata(record.asset_id);
+    const metadata = createEmptyMetadata();
     return jsonResponse(request, {
       disclaimer: TRANSCRIPT_DISCLAIMER,
       url: canonicalTranscriptUrl(baseUrl, locale, record, null),
@@ -266,7 +266,7 @@ async function handleMeeting(
           `Transcript not yet available (status: ${transcript.transcription_status}).\n`,
       );
     }
-    const metadata = await getVideoMetadata(record.asset_id);
+    const metadata = createEmptyMetadata();
     return jsonResponse(request, {
       disclaimer: TRANSCRIPT_DISCLAIMER,
       url: canonicalTranscriptUrl(
@@ -371,7 +371,7 @@ async function handleMeeting(
     };
   });
 
-  const metadata = await getVideoMetadata(record.asset_id);
+  const metadata = createEmptyMetadata();
   return jsonResponse(request, {
     disclaimer: TRANSCRIPT_DISCLAIMER,
     url: canonicalTranscriptUrl(
@@ -440,7 +440,7 @@ function serializeVideo(
 }
 
 function serializeMetadata(
-  metadata: Awaited<ReturnType<typeof getVideoMetadata>>,
+  metadata: ReturnType<typeof createEmptyMetadata>,
 ) {
   return {
     summary: metadata.summary,

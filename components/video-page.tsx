@@ -17,8 +17,6 @@ import type { VideoRecord } from "@/lib/db";
 import { formatDateForMetadata } from "@/lib/timezone";
 import { videoUrl } from "@/lib/video-url";
 import {
-  fetchAssetPage,
-  parseVideoMetadata,
   createEmptyMetadata,
   recordToVideo,
 } from "@/lib/un-api";
@@ -26,8 +24,6 @@ import { fetchKalturaEntryStatuses } from "@/lib/kaltura-helpers";
 import {
   applyRemoval,
   classifyKaltura,
-  classifyWebtv,
-  type Liveness,
 } from "@/lib/removed-videos";
 import { widePageWidth } from "@/lib/layout";
 import { cn, jsonLdScript } from "@/lib/utils";
@@ -181,27 +177,20 @@ export async function renderVideoPage({
 
   const video = recordToVideo(record, hasTranscript, locale);
 
-  // Lazy removal detection. The render already fetches the WebTV asset page for
-  // metadata, so reuse that response as a liveness signal: a 404 means the asset
-  // was unpublished. Probe Kaltura only when WebTV is still live (a WebTV 404
-  // alone already settles it). If either upstream is gone, persist the removal
-  // off the response path via after() and 404 this render. Already-removed rows
-  // never reach here — getVideoBy* filters them (they 404 upstream in the route).
-  const { status, html } = await fetchAssetPage(record.asset_id);
-  const webtv = classifyWebtv(status);
-  let kaltura: Liveness = "unknown";
-  if (webtv === "live" && record.entry_id) {
+  // Keep the visitor Kaltura removal check. WebTV unpublishing is handled by
+  // the scheduled reaper; rendering must not fetch the WebTV asset page.
+  if (record.entry_id) {
     const statuses = await fetchKalturaEntryStatuses([record.entry_id], {
       visitor: true,
     });
-    kaltura = classifyKaltura(statuses.get(record.entry_id));
-  }
-  if (webtv === "gone" || kaltura === "gone") {
-    after(() => applyRemoval(record.asset_id, { webtv, kaltura }));
-    notFound();
+    const kaltura = classifyKaltura(statuses.get(record.entry_id));
+    if (kaltura === "gone") {
+      after(() => applyRemoval(record.asset_id, { kaltura }));
+      notFound();
+    }
   }
 
-  const metadata = html ? parseVideoMetadata(html) : createEmptyMetadata();
+  const metadata = createEmptyMetadata();
   const user = await getCurrentUser();
   const isLoggedIn = !!user;
   const experimentalAccess = user?.experimentalAccess ?? false;

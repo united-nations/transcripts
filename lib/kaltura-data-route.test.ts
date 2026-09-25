@@ -6,6 +6,7 @@ import type { VideoRecord } from "@/lib/db";
 const mocks = vi.hoisted(() => ({
   getVideoByKalturaId: vi.fn(),
   getTranscriptByKalturaId: vi.fn(),
+  getVideoMetadata: vi.fn(),
 }));
 
 vi.mock("@/lib/db", async (importOriginal) => ({
@@ -19,16 +20,7 @@ vi.mock("@/lib/get-base-url", () => ({
 
 vi.mock("@/lib/un-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/un-api")>()),
-  getVideoMetadata: vi.fn(async () => ({
-    summary: null,
-    description: null,
-    categories: [],
-    geographicSubject: [],
-    subjectTopical: [],
-    corporateName: [],
-    speakerAffiliation: [],
-    relatedDocuments: [],
-  })),
+  getVideoMetadata: mocks.getVideoMetadata,
 }));
 
 import { GET } from "@/app/api/data/[locale]/[format]/[...path]/route";
@@ -78,6 +70,17 @@ describe("Kaltura public data route", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     const payload = await response.json();
+    expect(mocks.getVideoMetadata).not.toHaveBeenCalled();
+    expect(payload.metadata).toEqual({
+      summary: null,
+      description: null,
+      categories: [],
+      geographic_subject: [],
+      subject_topical: [],
+      corporate_name: [],
+      speaker_affiliation: [],
+      related_documents: [],
+    });
     expect(payload).toMatchObject({
       url: "https://transcripts.un.org/en/sc/10001",
       video: {

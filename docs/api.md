@@ -152,7 +152,7 @@ Returns a paginated list of UN meetings matching the given filters. Covers the l
 
 | Parameter  | Type           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ---------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `q`        | string         | Search meeting titles and metadata (FTS with trigram ILIKE fallback). Min 2 characters — a shorter (non-empty) `q` is a **400**. Add `ft=1` to also search transcript content.                                                                                                                                                                                                                                                                                                        |
+| `q`        | string         | Search meeting titles (FTS with trigram ILIKE fallback). Min 2 characters — a shorter (non-empty) `q` is a **400**. Add `ft=1` to also search transcript content.                                                                                                                                                                                                                                                                                                        |
 | `ft`       | `1`            | With `q`: also search **inside transcript statements** (the URL locale's transcript track). Adds content-matched meetings to the results and a per-meeting `matches` object (see below). Terms containing digits (`L.73`, `2735`, `S/2026/243`) match as exact fragments — robust for document symbols; word terms use stemmed full-text search, and quoted phrases work. Only meetings with a completed transcript are searchable this way. `ft=1` without a valid `q` is a **400**. |
 | `category` | string         | Filter by meeting category.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `date`     | YYYY-MM-DD     | Filter to a specific date. A value not matching `YYYY-MM-DD` is a **400**. Pass either `date` or `from`/`to` — combining them is _not_ rejected, the conditions are `AND`ed into an intersection.                                                                                                                                                                                                                                                                                     |
@@ -312,11 +312,14 @@ language differs from the URL locale.
     "slug": "sc/10175"
   },
   "metadata": {
-    "summary": "...",
-    "description": "...",
-    "categories": ["..."],
-    "geographic_subject": "...",
-    "related_documents": ["..."]
+    "summary": null,
+    "description": null,
+    "categories": [],
+    "geographic_subject": [],
+    "subject_topical": [],
+    "corporate_name": [],
+    "speaker_affiliation": [],
+    "related_documents": []
   },
   "transcript": {
     "transcript_id": "...",
