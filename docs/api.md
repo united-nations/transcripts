@@ -209,7 +209,6 @@ all result meetings):
         "statements": [
           {
             "speaker": {
-              "name": "…",
               "function": "…",
               "affiliation": "USA",
               "group": null
@@ -330,7 +329,6 @@ language differs from the URL locale.
         "start": 12.0,
         "pageUrl": "/en/sc/10175?t=0:12",
         "speaker": {
-          "name": "...",
           "affiliation": "XXX",
           "affiliation_full": "...",
           "group": null,
@@ -367,8 +365,12 @@ language differs from the URL locale.
 **Key fields:**
 
 - `data[]` — speaker turns (statements); each has `start` (**seconds**, the statement's first sentence), a ready-made `pageUrl` deeplinking to that moment (`?t=`, plus `?lang=` when the served track isn't the URL locale's), and `paragraphs[].sentences[]` with `text`, `start`/`end` (**seconds**, floating point), `topics`, and an optional per-sentence `words[]` array with `text` + `start`/`end` in seconds. `words` is omitted when the underlying STT provider didn't supply word-level timing.
-- `speaker` on each statement — resolved speaker info (name, function, affiliation as ISO 3166-1 alpha-3, affiliation_full as country name, group).
+- `speaker` on each statement — speaker attribution (function, affiliation as ISO 3166-1 alpha-3, affiliation_full as country name, group). Inferred person names are omitted from public responses and all transcript exports; the generic `representative` function is returned as `null`. Names spoken in the transcript text are preserved.
 - `topics[]` on each sentence — 0–3 topics this sentence relates to (key + label + description, denormalized for convenience).
+
+This attribution policy also applies to public search hits, clipboard copies, TXT, RTF, VTT and XLSX exports. Experimental speaker and analysis views retain their existing name data. Ordinary browser payloads use transcript-local turn numbers to preserve speaker boundaries without exposing inferred names.
+
+When deploying this response-shape change, invalidate cached transcript and search responses if immediate removal is needed. The public data routes otherwise retain their existing 60-second shared-cache lifetime and 300-second stale-while-revalidate window; already downloaded files are unaffected.
 
 ## LLM discovery
 

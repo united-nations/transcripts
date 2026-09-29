@@ -30,14 +30,23 @@ describe("formatSpeakerText", () => {
       affiliation: "FRA",
       group: null,
     },
-    "2": { name: null, function: null, affiliation: null, group: null },
+    "2": {
+      name: "Inferred name",
+      function: null,
+      affiliation: null,
+      group: null,
+    },
+    "3": {
+      name: "Another name",
+      function: "Representative",
+      affiliation: null,
+      group: null,
+    },
   };
   const countryNames = new Map([["FRA", "France"]]);
 
-  it("joins affiliation, group, function, name with separators", () => {
-    expect(formatSpeakerText(0, mapping, countryNames)).toBe(
-      "UN · USG · Ms. DiCarlo",
-    );
+  it("joins visible attribution without inferred names", () => {
+    expect(formatSpeakerText(0, mapping, countryNames)).toBe("UN · USG");
   });
 
   it("expands country codes and drops the default 'representative' function", () => {
@@ -46,6 +55,7 @@ describe("formatSpeakerText", () => {
 
   it("falls back to Speaker N when unknown", () => {
     expect(formatSpeakerText(2, mapping, countryNames)).toBe("Speaker 3");
+    expect(formatSpeakerText(3, mapping, countryNames)).toBe("Speaker 4");
     expect(formatSpeakerText(9, mapping, countryNames)).toBe("Speaker 10");
     expect(formatSpeakerText(undefined, mapping, countryNames)).toBe("Speaker");
   });

@@ -1,3 +1,4 @@
+import { publicSpeakerInfo, type PublicSpeakerInfo } from "./public-speakers";
 import { Pool } from "pg";
 import { readFileSync } from "fs";
 import { randomUUID } from "crypto";
@@ -1944,7 +1945,7 @@ export interface StatementHit {
   /** Text continues before/after the snippet window. */
   leading: boolean;
   trailing: boolean;
-  speaker: SpeakerInfo | null;
+  speaker: PublicSpeakerInfo | null;
 }
 
 export interface ContentMatchSummary {
@@ -2446,7 +2447,9 @@ function mapStatementHits(
       text: windowed.text,
       leading: windowed.leading,
       trailing: windowed.trailing,
-      speaker: (rowHit.speaker as SpeakerInfo | null) ?? null,
+      speaker: rowHit.speaker
+        ? publicSpeakerInfo(rowHit.speaker as SpeakerInfo)
+        : null,
     };
     hits.push(hit);
     if (matchIdx >= 0 && typeof rowHit.transcriptId === "string") {
@@ -2608,7 +2611,9 @@ export async function getStatementMatches(
       text: windowed.text,
       leading: windowed.leading,
       trailing: windowed.trailing,
-      speaker: (row.speaker as SpeakerInfo | null) ?? null,
+      speaker: row.speaker
+        ? publicSpeakerInfo(row.speaker as SpeakerInfo)
+        : null,
     };
     if (matchIdx >= 0) {
       refs.push({

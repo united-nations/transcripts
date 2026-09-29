@@ -1,6 +1,6 @@
 "use client";
 
-import type { SpeakerInfo } from "@/lib/speakers";
+import type { DisplaySpeakerInfo as SpeakerInfo } from "@/lib/public-speakers";
 
 /**
  * The speaker badge row used wherever a transcript statement is attributed:

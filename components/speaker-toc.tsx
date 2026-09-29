@@ -1,6 +1,9 @@
 "use client";
 
-import type { SpeakerInfo, SpeakerMapping } from "@/lib/speakers";
+import type {
+  DisplaySpeakerInfo as SpeakerInfo,
+  DisplaySpeakerMapping as SpeakerMapping,
+} from "@/lib/public-speakers";
 import { TocItem, useTocActiveScroll } from "@/components/toc-item";
 import { formatTimecode } from "@/lib/transcript-formatting";
 import { typography } from "@/lib/typography";

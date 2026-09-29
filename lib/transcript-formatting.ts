@@ -2,7 +2,8 @@
  * Pure formatting helpers for transcript rendering, extracted from
  * transcription-panel.tsx so they can be unit-tested in isolation.
  */
-import type { SpeakerMapping } from "@/lib/speakers";
+import { publicSpeakerInfo } from "./public-speakers";
+import type { DisplaySpeakerMapping as SpeakerMapping } from "@/lib/public-speakers";
 
 /** Format a duration in seconds as `M:SS` (or `H:MM:SS` past an hour). */
 export function formatTimecode(seconds: number | null | undefined): string {
@@ -115,11 +116,8 @@ export function formatSpeakerText(
   countryNames: Map<string, string>,
 ): string {
   if (statementIndex === undefined) return "Speaker";
-  const info = speakerMappings[statementIndex.toString()];
-  if (
-    !info ||
-    (!info.affiliation && !info.group && !info.function && !info.name)
-  ) {
+  const info = publicSpeakerInfo(speakerMappings[statementIndex.toString()]);
+  if (!info || (!info.affiliation && !info.group && !info.function)) {
     return `Speaker ${statementIndex + 1}`;
   }
   const parts: string[] = [];
@@ -128,6 +126,5 @@ export function formatSpeakerText(
   if (info.group) parts.push(info.group);
   if (info.function && info.function.toLowerCase() !== "representative")
     parts.push(info.function);
-  if (info.name) parts.push(info.name);
   return parts.join(" · ");
 }

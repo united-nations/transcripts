@@ -1,9 +1,12 @@
 import {
+  publicSpeakerMapping,
+  type DisplaySpeakerMapping as SpeakerMapping,
+} from "./public-speakers";
+import {
   getPendingTranscriptByKalturaId,
   getSpeakerMapping,
   isTranscriptFlagged,
   type AnalysisStatus,
-  type SpeakerMapping,
   type Transcript,
   type TranscriptContent,
   type TranscriptionStatus,
@@ -68,7 +71,9 @@ export async function buildTranscriptPayload(
       : null;
   return {
     statements: stripWordsFromStatements(visibleStatements),
-    speakerMappings,
+    speakerMappings: experimentalAccess
+      ? speakerMappings
+      : publicSpeakerMapping(speakerMappings, visibleStatements.length),
     topics: transcript.content.topics || {},
     propositions: experimentalAccess
       ? transcript.content.propositions || []

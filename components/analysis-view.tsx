@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown } from "lucide-react";
-import type { SpeakerMapping } from "@/lib/speakers";
+import type { DisplaySpeakerMapping as SpeakerMapping } from "@/lib/public-speakers";
 import type { Proposition } from "@/lib/pipeline";
 import { formatTimecodeMs } from "@/lib/transcript-formatting";
 import { typography } from "@/lib/typography";

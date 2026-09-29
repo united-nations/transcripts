@@ -1,3 +1,4 @@
+import { publicSpeakerMapping } from "@/lib/public-speakers";
 // Polls transcript pipeline status and returns the result when complete.
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
@@ -32,7 +33,15 @@ export async function GET(
       const fullMapping = (await getSpeakerMapping(transcriptId)) || {};
       const visible = filterOffRecord(result.statements, fullMapping);
       result.statements = visible.statements;
-      speakerMappings = visible.speakerMappings;
+      // Once structured statements exist, raw paragraphs bypass their
+      // off-record filter and are no longer needed for the fallback view.
+      delete result.raw_paragraphs;
+      speakerMappings = user?.experimentalAccess
+        ? visible.speakerMappings
+        : publicSpeakerMapping(
+            visible.speakerMappings,
+            visible.statements.length,
+          );
     }
 
     // The client polls this every few seconds while a transcript progresses.

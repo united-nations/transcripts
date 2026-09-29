@@ -1,11 +1,13 @@
 "use client";
 
+import { publicSpeakerInfo } from "@/lib/public-speakers";
+
 import { formatTimestamp, serializeMeetingParams } from "@/lib/timestamp-url";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { setUrlParam } from "@/lib/url-params";
-import type { SpeakerMapping } from "@/lib/speakers";
+import type { DisplaySpeakerMapping as SpeakerMapping } from "@/lib/public-speakers";
 import type { Video } from "@/lib/un-api";
 import { getCountryName } from "@/lib/country-lookup";
 import { useScrollToActive } from "@/lib/hooks/use-scroll-to-active";
@@ -1025,7 +1027,7 @@ export function TranscriptionPanel({
                 ? countryNames.get(info.affiliation) || info.affiliation
                 : "",
               speaker_group: info?.group || "",
-              function: info?.function || "",
+              function: publicSpeakerInfo(info).function || "",
               text,
             };
             topicList.forEach((topic) => {

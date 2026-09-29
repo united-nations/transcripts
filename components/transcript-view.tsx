@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, Link as LinkIcon } from "lucide-react";
-import type { SpeakerMapping } from "@/lib/speakers";
+import type { DisplaySpeakerMapping as SpeakerMapping } from "@/lib/public-speakers";
 import { SpeakerBadges } from "@/components/speaker-badges";
 import { getTopicColor } from "@/components/transcription-panel";
 import { formatTimecode } from "@/lib/transcript-formatting";

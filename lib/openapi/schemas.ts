@@ -117,7 +117,6 @@ export const TopicSchema = z
 
 export const SpeakerSchema = z
   .object({
-    name: z.string().nullable(),
     affiliation: z
       .string()
       .nullable()
@@ -129,7 +128,9 @@ export const SpeakerSchema = z
     group: z.string().nullable(),
     function: z.string().nullable(),
   })
-  .describe("Resolved speaker for a statement.");
+  .describe(
+    "Speaker attribution without inferred person names; generic representative functions are null.",
+  );
 
 export const WordSchema = z.object({
   text: z.string(),

@@ -34,6 +34,7 @@ import {
   getTranscriptByKalturaId,
   getActiveTranscriptByKalturaId,
   claimAnalysis,
+  getSpeakerMapping as getDbSpeakerMapping,
 } from "./db";
 import { getSpeakerMapping } from "./speakers";
 import { pollTranscription } from "./transcription";
@@ -65,10 +66,24 @@ const transcript = {
         ],
       },
     ],
-    raw_paragraphs: [{ text: "Public transcript" }],
+    raw_paragraphs: [
+      { text: "Public transcript" },
+      { text: "Off-record remarks" },
+    ],
     propositions,
   },
 } as unknown as Transcript;
+transcript.content.statements.push({
+  start: 1000,
+  end: 2000,
+  paragraphs: [
+    {
+      start: 1000,
+      end: 2000,
+      sentences: [{ text: "Off-record remarks", start: 1000, end: 2000 }],
+    },
+  ],
+});
 const context = { params: Promise.resolve({ id: "t1" }) };
 const accounts: [string, AuthUser | null][] = [
   ["anonymous", null],
@@ -97,13 +112,28 @@ beforeEach(() => {
   vi.mocked(getTranscriptById).mockResolvedValue(transcript);
   vi.mocked(getTranscriptByKalturaId).mockResolvedValue(transcript);
   vi.mocked(getActiveTranscriptByKalturaId).mockResolvedValue(transcript);
-  vi.mocked(getSpeakerMapping).mockResolvedValue({
-    s1: { name: "Speaker" },
-  } as never);
+  const mapping = {
+    "0": {
+      name: "Inferred person",
+      affiliation: "FRA",
+      function: "Representative",
+      group: null,
+    },
+    "1": {
+      name: "Off-record person",
+      affiliation: null,
+      function: null,
+      group: null,
+      is_off_record: true,
+    },
+  };
+  vi.mocked(getSpeakerMapping).mockResolvedValue(mapping);
+  vi.mocked(getDbSpeakerMapping).mockResolvedValue(mapping);
   vi.mocked(pollTranscription).mockImplementation(async () => ({
     stage: "completed",
     statements: transcript.content.statements,
     propositions: transcript.content.propositions,
+    raw_paragraphs: transcript.content.raw_paragraphs,
   }));
   vi.mocked(analyzePropositions).mockResolvedValue(
     transcript.content.propositions!,
@@ -119,6 +149,13 @@ describe.each(accounts)("analysis access: %s", (_name, user) => {
     });
     expect(result.propositions).toEqual(allowed ? propositions : []);
     expect(result.statements).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain("Off-record");
+    expect(result.speakerMappings["0"].name).toBe(
+      allowed ? "Inferred person" : undefined,
+    );
+    expect(result.speakerMappings["0"].function).toBe(
+      allowed ? "Representative" : null,
+    );
   });
   it.each(["check", "cached POST", "poll"])(
     "filters %s responses while retaining public transcripts",
@@ -145,6 +182,14 @@ describe.each(accounts)("analysis access: %s", (_name, user) => {
       const body = await response.json();
       expect(body.propositions).toEqual(allowed ? propositions : []);
       expect(body.statements).toHaveLength(1);
+      expect(JSON.stringify(body)).not.toContain("Off-record");
+      expect(body).not.toHaveProperty("raw_paragraphs");
+      expect(body.speakerMappings["0"].name).toBe(
+        allowed ? "Inferred person" : undefined,
+      );
+      expect(body.speakerMappings["0"].function).toBe(
+        allowed ? "Representative" : null,
+      );
       expect(response.headers.get("cache-control")).toContain("private");
       expect(response.headers.get("vary")).toContain("Cookie");
     },
@@ -177,7 +222,9 @@ it("does not reuse an authorized polling body after access is revoked", async ()
     context,
   );
   expect(denied.status).toBe(200);
-  expect((await denied.json()).propositions).toEqual([]);
+  const deniedBody = await denied.json();
+  expect(deniedBody.propositions).toEqual([]);
+  expect(JSON.stringify(deniedBody)).not.toContain("Inferred person");
   const unchanged = await poll(
     new NextRequest("http://localhost/api/transcripts/t1", {
       headers: { "if-none-match": denied.headers.get("etag")! },

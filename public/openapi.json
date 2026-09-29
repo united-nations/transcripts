@@ -784,10 +784,6 @@
                           "speaker": {
                             "type": "object",
                             "properties": {
-                              "name": {
-                                "type": "string",
-                                "nullable": true
-                              },
                               "affiliation": {
                                 "type": "string",
                                 "nullable": true,
@@ -808,14 +804,13 @@
                               }
                             },
                             "required": [
-                              "name",
                               "affiliation",
                               "affiliation_full",
                               "group",
                               "function"
                             ],
                             "additionalProperties": false,
-                            "description": "Resolved speaker for a statement.",
+                            "description": "Speaker attribution without inferred person names; generic representative functions are null.",
                             "nullable": true
                           },
                           "text": {
@@ -1192,10 +1187,6 @@
                         "speaker": {
                           "type": "object",
                           "properties": {
-                            "name": {
-                              "type": "string",
-                              "nullable": true
-                            },
                             "affiliation": {
                               "type": "string",
                               "nullable": true,
@@ -1216,14 +1207,13 @@
                             }
                           },
                           "required": [
-                            "name",
                             "affiliation",
                             "affiliation_full",
                             "group",
                             "function"
                           ],
                           "additionalProperties": false,
-                          "description": "Resolved speaker for a statement."
+                          "description": "Speaker attribution without inferred person names; generic representative functions are null."
                         }
                       },
                       "required": [

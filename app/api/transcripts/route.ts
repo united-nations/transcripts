@@ -8,7 +8,7 @@ import {
 } from "@/lib/db";
 import { submitTranscription } from "@/lib/transcription";
 import { after } from "next/server";
-import { getSpeakerMapping } from "@/lib/speakers";
+import { buildTranscriptPayload } from "@/lib/transcript-payload";
 import { apiError } from "@/lib/api-error";
 import { getCurrentUser } from "@/lib/auth/service";
 import { requireUser } from "@/lib/auth/require-user";
@@ -41,37 +41,16 @@ async function respondWithCached(cached: Transcript) {
     );
   }
 
-  const speakerMappings = await getSpeakerMapping(cached.transcript_id);
-  // Propositions ("analysis") are private — only return them to users with experimental access.
   const user = await getCurrentUser();
-  const flagged = isTranscriptFlagged(cached);
-  // Pending retranscribe id (if any): the in-progress row that will eventually
-  // replace this completed-flagged one. Only meaningful when flagged.
-  const pending =
-    flagged && cached.language_code
-      ? await getPendingTranscriptByKalturaId(
-          cached.kaltura_id,
-          cached.language_code,
-        )
-      : null;
+  const { analysisStatus, ...payload } = await buildTranscriptPayload(cached, {
+    experimentalAccess: !!user?.experimentalAccess,
+  });
   return NextResponse.json(
     {
-      statements: cached.content.statements,
-      language: cached.language_code,
+      ...payload,
       cached: true,
-      transcriptId: cached.transcript_id,
       stage: "completed",
-      analysis_status: cached.analysis_status,
-      topics: cached.content.topics || {},
-      propositions: user?.experimentalAccess
-        ? cached.content.propositions || []
-        : [],
-      speakerMappings: speakerMappings || {},
-      flagged,
-      sourceDurationMs: cached.source_duration_ms,
-      alignedDurationMs: cached.aligned_duration_ms,
-      pendingRetranscribeId: pending?.transcript_id ?? null,
-      pendingRetranscribeStage: pending?.transcription_status ?? null,
+      analysis_status: analysisStatus,
     },
     { headers: { "Cache-Control": "private, no-cache", Vary: "Cookie" } },
   );
