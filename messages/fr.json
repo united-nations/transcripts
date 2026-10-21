@@ -19,6 +19,8 @@
     "subscriptions": "Abonnements",
     "signIn": "Se connecter",
     "signOut": "Se déconnecter",
+    "signingOut": "Déconnexion en cours…",
+    "signOutError": "Impossible de se déconnecter. Veuillez réessayer.",
     "signedInAs": "Connecté en tant que",
     "accountMenu": "Menu du compte",
     "openMenu": "Ouvrir le menu",

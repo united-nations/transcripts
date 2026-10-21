@@ -19,6 +19,8 @@
     "subscriptions": "Subscriptions",
     "signIn": "Sign in",
     "signOut": "Sign out",
+    "signingOut": "Signing out…",
+    "signOutError": "Could not sign out. Please try again.",
     "signedInAs": "Signed in as",
     "accountMenu": "Account menu",
     "openMenu": "Open menu",

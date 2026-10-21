@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@un-eosg/ui/theme.css";
+@source "../node_modules/@un-eosg/ui/components";
 @import "tw-animate-css";
 
 @theme {

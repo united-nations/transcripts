@@ -19,6 +19,8 @@
     "subscriptions": "Подписки",
     "signIn": "Войти",
     "signOut": "Выйти",
+    "signingOut": "Выход…",
+    "signOutError": "Не удалось выйти. Попробуйте ещё раз.",
     "signedInAs": "Вход выполнен под именем",
     "accountMenu": "Меню аккаунта",
     "openMenu": "Открыть меню",

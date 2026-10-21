@@ -6,7 +6,6 @@ import { LanguagePicker } from "@/components/language-picker";
 import { TimezonePicker } from "@/components/timezone-picker";
 import { AuthControl } from "@/components/auth-control";
 import { AuthNavLinks } from "@/components/auth-nav-links";
-import { MobileAuthSection } from "@/components/mobile-auth-section";
 import {
   Popover,
   PopoverContent,
@@ -163,7 +162,7 @@ export function SiteHeader({ wide = false }: { wide?: boolean }) {
               className="flex w-56 flex-col gap-3 p-3"
             >
               <HeaderPageLinks />
-              <MobileAuthSection />
+              <AuthControl inline />
             </PopoverContent>
           </Popover>
           <div className="hidden md:flex">

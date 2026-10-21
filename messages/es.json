@@ -19,6 +19,8 @@
     "subscriptions": "Suscripciones",
     "signIn": "Iniciar sesión",
     "signOut": "Cerrar sesión",
+    "signingOut": "Cerrando sesión…",
+    "signOutError": "No se pudo cerrar la sesión. Inténtelo de nuevo.",
     "signedInAs": "Sesión iniciada como",
     "accountMenu": "Menú de cuenta",
     "openMenu": "Abrir menú",

@@ -1,108 +1,44 @@
 "use client";
 
-import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { typography } from "@/lib/typography";
-import { cn } from "@/lib/utils";
+import { SignInCard } from "@un-eosg/ui/components/sign-in-card";
 
 export function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">(
-    "idle",
-  );
-  const [errorMsg, setErrorMsg] = useState("");
   const t = useTranslations("login");
   const locale = useLocale();
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus("loading");
-    setErrorMsg("");
-    try {
-      const res = await fetch("/api/auth/request-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, locale }),
-      });
-      const result = (await res.json()) as
-        | { ok: true }
-        | { ok: false; error: string };
-      if (result.ok) {
-        setStatus("sent");
-      } else {
-        setErrorMsg(result.error);
-        setStatus("error");
-      }
-    } catch {
-      setErrorMsg(t("errorSendFailed"));
-      setStatus("error");
-    }
+  async function submit(email: string) {
+    const response = await fetch("/api/auth/request-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, locale }),
+    });
+    const result = (await response.json()) as
+      { ok: true } | { ok: false; error: string };
+    return result.ok && response.ok
+      ? { success: true }
+      : {
+          success: false,
+          error: "error" in result ? result.error : t("errorSendFailed"),
+        };
   }
-
   return (
     <div className="flex flex-1 items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="rounded-2xl border border-border bg-white p-8 shadow-sm">
-          <h1 className={cn(typography.cardTitle, "mb-1")}>{t("title")}</h1>
-          <p className="mb-8 text-sm text-muted-foreground">{t("subtitle")}</p>
-          {status === "sent" ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="min-h-[105px] rounded-lg border border-green-200 bg-green-50 p-4"
-            >
-              <p className="font-medium text-green-900">{t("sentTitle")}</p>
-              <p className="mt-2 text-sm text-green-800">
-                {t("sentBody", { email })}
-              </p>
-              <p className="mt-2 text-sm text-green-800">{t("sentSpamHint")}</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <label
-                  htmlFor="email"
-                  className={cn(typography.label, "block text-foreground")}
-                >
-                  {t("emailLabel")}
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  name="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder={t("emailPlaceholder")}
-                  required
-                  autoComplete="email"
-                  aria-invalid={status === "error" ? true : undefined}
-                  aria-describedby={
-                    status === "error" ? "email-error" : undefined
-                  }
-                  className="w-full rounded-lg border border-border px-4 py-2.5 text-sm transition-all placeholder:text-muted-foreground focus:border-un-blue focus:ring-2 focus:ring-un-blue/20 focus:outline-none"
-                />
-              </div>
-              {status === "error" && (
-                <div
-                  id="email-error"
-                  role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 p-3"
-                >
-                  <p className="text-sm text-red-700">{errorMsg}</p>
-                </div>
-              )}
-              <button
-                type="submit"
-                disabled={status === "loading"}
-                aria-busy={status === "loading"}
-                className="w-full rounded-lg bg-un-blue px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-un-blue/90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {status === "loading" ? t("submitting") : t("submit")}
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
+      <SignInCard
+        headingLevel="h1"
+        onSubmit={submit}
+        labels={{
+          title: t("title"),
+          intro: t("subtitle"),
+          emailLabel: t("emailLabel"),
+          emailPlaceholder: t("emailPlaceholder"),
+          submit: t("submit"),
+          submitting: t("submitting"),
+          sentTitle: t("sentTitle"),
+          sentBody: (email) => t("sentBody", { email }),
+          sentHint: t("sentSpamHint"),
+          errorMessage: t("errorSendFailed"),
+        }}
+      />
     </div>
   );
 }

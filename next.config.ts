@@ -9,6 +9,7 @@ import {
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@un-eosg/ui"],
   // Standalone build collects only the server + its traced deps into
   // `.next/standalone`, which is what the Azure container runs (`node
   // server.js`). Vercel ignores this and uses its own build pipeline.
