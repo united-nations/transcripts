@@ -693,8 +693,8 @@ export async function runPropositionAnalysisJob(
   const transcript = await getTranscriptById(transcriptId);
   if (!transcript) return { ok: false, code: "not_found" };
 
-  const paragraphs = transcript.content.raw_paragraphs;
-  if (!paragraphs || paragraphs.length === 0) {
+  const statements = transcript.content.statements;
+  if (!statements || statements.length === 0) {
     return { ok: false, code: "missing_data" };
   }
 
@@ -719,7 +719,7 @@ export async function runPropositionAnalysisJob(
       apiVersion: process.env.AZURE_OPENAI_API_VERSION || "2024-12-01-preview",
     });
     const propositions = await analyzePropositions(
-      paragraphs,
+      statements,
       speakerMapping,
       client,
       transcriptId,

@@ -9,7 +9,7 @@ import {
 } from "@/lib/usage-tracking";
 import { getAnalysisModel } from "@/lib/providers/models";
 import { getLanguageFullName } from "@/lib/languages";
-import type { ParagraphInput } from "./shared";
+import type { StatementWithSentences } from "./shared";
 
 const EvidenceQuoteSchema = z.object({
   stakeholder: z.string(),
@@ -41,7 +41,7 @@ export type Position = z.infer<typeof PositionSchema>;
 export type Proposition = z.infer<typeof PropositionSchema>;
 
 export async function analyzePropositions(
-  paragraphs: ParagraphInput[],
+  statements: StatementWithSentences[],
   speakerMapping: SpeakerMapping,
   client: AzureOpenAI,
   transcriptId?: string,
@@ -49,17 +49,25 @@ export async function analyzePropositions(
 ): Promise<Proposition[]> {
   console.log(`  → Analyzing propositions...`);
 
-  // Build transcript with indices and speaker labels
-  const substantiveStatements = paragraphs
-    .map((p, idx) => {
+  // Speaker mappings are indexed by the final split/grouped statements, never
+  // by raw ASR paragraphs. Keep those indices through filtering and verification.
+  const statementTexts = statements.map((statement) =>
+    statement.paragraphs
+      .map((paragraph) =>
+        paragraph.sentences.map((sentence) => sentence.text).join(" "),
+      )
+      .join("\n\n"),
+  );
+  const substantiveStatements = statementTexts
+    .map((text, idx) => {
       const speaker = speakerMapping[idx.toString()];
       const isChair =
         speaker?.function?.toLowerCase().includes("chair") ||
         speaker?.function?.toLowerCase().includes("president") ||
         speaker?.function?.toLowerCase().includes("moderator");
-      return { paragraph: p, index: idx, speaker, isChair };
+      return { text, index: idx, speaker, isChair };
     })
-    .filter(({ isChair }) => !isChair);
+    .filter(({ isChair, speaker }) => !isChair && !speaker?.is_off_record);
 
   if (substantiveStatements.length < 2) {
     console.log(
@@ -70,10 +78,10 @@ export async function analyzePropositions(
 
   // Format: [index] (Speaker) Text...
   const transcriptParts = substantiveStatements.map(
-    ({ paragraph, index, speaker }) => {
+    ({ text, index, speaker }) => {
       const speakerLabel =
         speaker?.name || speaker?.affiliation || speaker?.group || "Unknown";
-      return `[${index}] (${speakerLabel}) ${paragraph.text}`;
+      return `[${index}] (${speakerLabel}) ${text}`;
     },
   );
 
@@ -84,7 +92,7 @@ export async function analyzePropositions(
     operation: UsageOperations.analyzePropositions,
     model: getAnalysisModel(),
     requestMeta: {
-      paragraph_count: paragraphs.length,
+      statement_count: statements.length,
       substantive_statements: substantiveStatements.length,
     },
     request: {
@@ -152,13 +160,16 @@ ${transcriptParts.join("\n\n")}`,
 
   const parsed = JSON.parse(result) as z.infer<typeof PropositionAnalysis>;
 
-  // Verify and filter evidence quotes
+  // Evidence uses the same source text and original statement indices as the prompt.
+  const evidenceSources = new Map(
+    substantiveStatements.map(({ index, text }) => [index, text]),
+  );
   const verified: Proposition[] = parsed.propositions.map((prop) => ({
     ...prop,
     positions: prop.positions.map((pos) => {
       const verifiedEvidence = pos.evidence.filter((ev) => {
-        const para = paragraphs[ev.statementIndex];
-        if (!para) {
+        const statementText = evidenceSources.get(ev.statementIndex);
+        if (statementText === undefined) {
           console.log(`  ⚠ Invalid statement index: ${ev.statementIndex}`);
           return false;
         }
@@ -169,7 +180,7 @@ ${transcriptParts.join("\n\n")}`,
             .replace(/[^\w\s]/g, "")
             .replace(/\s+/g, " ")
             .trim();
-        const paraText = normalize(para.text);
+        const paraText = normalize(statementText);
         const quoteText = normalize(ev.quote);
         // Check if quote is contained in paragraph (with some fuzzy matching for minor variations)
         const found =

@@ -131,14 +131,14 @@ Sentences are grouped into batches of 15 and tagged in parallel (up to 20 concur
 **Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Not part of the automatic pipeline** — must be explicitly triggered.
 
-Identifies 3-8 concrete propositions (not generic topics) and maps stakeholder positions on each.
+Identifies 3-8 concrete propositions (not generic topics) and maps stakeholder positions on each. Uses the final processed statements and their matching speaker map, preserving statement indices through off-record filtering and evidence verification.
 
 **Output per proposition:**
 - `key`, `title`, `statement` — the proposition itself
 - `positions[]` — grouped by stance (`support`, `oppose`, `conditional`, `neutral`), each with:
   - `stakeholders[]` — speaker names/organizations
   - `summary` — 1-sentence position summary
-  - `evidence[]` — exact quotes from the transcript with source paragraph indices
+  - `evidence[]` — exact quotes from the transcript with source statement indices
 
 All evidence quotes are verified against the actual transcript text using fuzzy word matching; unverifiable quotes are filtered out.
 

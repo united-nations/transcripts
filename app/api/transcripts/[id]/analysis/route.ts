@@ -33,9 +33,9 @@ export async function POST(
       return apiError(404, "not_found", "Transcript not found");
     }
 
-    const paragraphs = transcript.content.raw_paragraphs;
-    if (!paragraphs || paragraphs.length === 0) {
-      return apiError(400, "missing_data", "No raw paragraphs available");
+    const statements = transcript.content.statements;
+    if (!statements || statements.length === 0) {
+      return apiError(400, "missing_data", "No processed statements available");
     }
 
     const speakerMapping = await getSpeakerMapping(transcriptId);
@@ -70,7 +70,7 @@ export async function POST(
       });
 
       const propositions = await analyzePropositions(
-        paragraphs,
+        statements,
         speakerMapping,
         client,
         transcriptId,
