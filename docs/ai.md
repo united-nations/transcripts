@@ -102,7 +102,7 @@ Identifies who is actually speaking each paragraph (not who is being mentioned o
 
 ASR sometimes places a speaker boundary incorrectly, merging two speakers into one paragraph. This step splits them. Each flagged paragraph is processed in parallel with surrounding context.
 
-Low-confidence splits are discarded.
+Low-confidence splits are discarded. Splits are also rejected if they change the normalized source text, fail to align with complete timed words, or leave any source words unused; the original paragraph and speaker are retained.
 
 ## 4. Topic definition
 

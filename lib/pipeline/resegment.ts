@@ -261,10 +261,16 @@ If you determine the CURRENT paragraph should be split, copy the exact text from
     };
   }
 
-  const indexStr = paragraphIndex !== undefined ? ` [${paragraphIndex}]` : "";
-  console.log(
-    `  ✓ Para${indexStr} split into ${parsed.segments.length} (${parsed.confidence} confidence): ${parsed.reason}`,
-  );
+  // Reject the whole proposal on any integrity or timing-alignment failure.
+  // Partial splits can shift the remaining speaker labels or silently lose text.
+  const keepOriginal = (reason: string) => {
+    console.warn(`  ⚠ Rejected resegmentation; keeping original: ${reason}`);
+    return { segments: [paragraph], speakers: [currentSpeaker] };
+  };
+
+  if (parsed.segments.length < 2) {
+    return keepOriginal("fewer than two segments");
+  }
 
   // Verify content integrity
   const originalNormalized = normalizeText(paragraph.text);
@@ -273,14 +279,10 @@ If you determine the CURRENT paragraph should be split, copy the exact text from
   );
 
   if (originalNormalized !== segmentsNormalized) {
-    console.warn(`  ⚠ Content mismatch after resegmentation!`);
-    console.warn(`    Original: "${paragraph.text.substring(0, 100)}..."`);
-    console.warn(
-      `    Segments: "${parsed.segments
-        .map((s) => s.text)
-        .join(" ")
-        .substring(0, 100)}..."`,
-    );
+    return keepOriginal("segment text differs from source text");
+  }
+  if (parsed.segments.some((segment) => !normalizeText(segment.text))) {
+    return keepOriginal("empty segment text");
   }
 
   // Splitting requires per-word timing to place each segment's boundary in
@@ -288,18 +290,7 @@ If you determine the CURRENT paragraph should be split, copy the exact text from
   // anyway: keep them unsplit rather than fabricate sub-timing.
   const paraWords = paragraph.words;
   if (!paraWords || paraWords.length === 0) {
-    const current = contextParas.find((c) => c.position === "current");
-    return {
-      segments: [paragraph],
-      speakers: [
-        current?.speaker ?? {
-          name: null,
-          function: null,
-          affiliation: null,
-          group: null,
-        },
-      ],
-    };
+    return keepOriginal("no word timestamps");
   }
 
   // Match segment texts to words
@@ -321,21 +312,33 @@ If you determine the CURRENT paragraph should be split, copy the exact text from
       wordOffset++;
     }
 
-    if (words.length > 0) {
-      segments.push({
-        text: words.map((w) => w.text).join(" "),
-        start: words[0].start,
-        end: words[words.length - 1].end,
-        words,
-      });
-      speakers.push({
-        name: seg.name,
-        function: seg.function,
-        affiliation: seg.affiliation,
-        group: seg.group,
-      });
+    // Equal character counts alone do not establish a word boundary: a split
+    // can land inside a source word or the word stream can disagree with text.
+    if (words.length === 0 || matchedNormalized !== segNormalized) {
+      return keepOriginal("segment does not match a complete source word span");
     }
+
+    segments.push({
+      text: words.map((w) => w.text).join(" "),
+      start: words[0].start,
+      end: words[words.length - 1].end,
+      words,
+    });
+    speakers.push({
+      name: seg.name,
+      function: seg.function,
+      affiliation: seg.affiliation,
+      group: seg.group,
+    });
   }
 
+  if (wordOffset !== paraWords.length) {
+    return keepOriginal("unconsumed source words");
+  }
+
+  const indexStr = paragraphIndex !== undefined ? ` [${paragraphIndex}]` : "";
+  console.log(
+    `  ✓ Para${indexStr} split into ${segments.length} (${parsed.confidence} confidence): ${parsed.reason}`,
+  );
   return { segments, speakers };
 }
