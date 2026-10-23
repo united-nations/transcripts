@@ -13,6 +13,7 @@ import {
   type ParagraphWord,
   normalizeText,
   IDENTIFICATION_RULES,
+  INTERPRETED_SPEECH_RULES,
   COMMON_ABBREVIATIONS,
   SCHEMA_DEFINITIONS,
 } from "./shared";
@@ -112,7 +113,7 @@ This transcript was created by automatic speech recognition, which divided the a
 In an initial identification pass, we detected that the CURRENT paragraph likely contains speech from multiple different speakers mixed together (e.g., the last few sentences of one speaker followed by the first sentences of the next speaker).
 
 YOUR TASK:
-Determine WHO IS SPEAKING each part of the CURRENT paragraph. If different people speak different parts, split at the speaker change boundaries.
+Determine whose intervention each part of the CURRENT paragraph conveys. Split only at boundaries between different participants' interventions, including genuine chair handoffs and questions/answers.
 
 You are provided context:
 - BEFORE-N paragraphs: Who was speaking before, providing conversation flow
@@ -120,7 +121,7 @@ You are provided context:
 - AFTER+N paragraphs: Who speaks next, helping identify transitions
 
 FUNDAMENTAL QUESTION:
-Is the entire CURRENT paragraph spoken by one person, or does it contain words from multiple different speakers?
+Does the entire CURRENT paragraph convey one participant's intervention, including interpretation, or interventions belonging to different participants?
 
 Think semantically, not by keyword patterns:
 - WHO is saying the opening words?
@@ -131,8 +132,8 @@ Think semantically, not by keyword patterns:
 DECISION PROCESS:
 
 1. Analyze the content semantically:
-   - If one person speaks throughout → should_split = false
-   - If multiple people speak different parts → should_split = true
+   - If one participant's intervention continues, including through interpretation → should_split = false
+   - If different participants' interventions occupy different parts → should_split = true
    - Look for actual speaker changes, not just topic shifts within one speech
 
 2. Common scenarios where splitting IS needed:
@@ -168,7 +169,7 @@ ${COMMON_ABBREVIATIONS}
 
 ${SCHEMA_DEFINITIONS}
 
-should_split: Boolean - Does this paragraph contain words spoken by multiple different people? True if different speakers, false if one continuous speaker throughout.
+should_split: Boolean - True only for boundaries between different participants' interventions; false for original/interpretation alternation alone.
 
 confidence: Your confidence in determining who is speaking:
 - "high": Very clear who speaks each part
@@ -178,7 +179,9 @@ confidence: Your confidence in determining who is speaking:
 reason: Brief explanation (1-2 sentences) focusing on WHO is speaking. Examples: "Delegate finishes remarks, then chair responds" or "One continuous speech by the representative, opening courtesy is part of their remarks".
 
 text: EXACT text of each segment, copied character-by-character from the CURRENT paragraph. Every word, comma, period, space must be preserved exactly. Do NOT include speaker labels, prefixes like "(Speaker: ...)", or other metadata - ONLY the actual spoken words.
-`,
+
+
+${INTERPRETED_SPEECH_RULES}`,
         },
         {
           role: "user",

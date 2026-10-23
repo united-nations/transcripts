@@ -23,6 +23,7 @@ import {
   speakersEqual,
   buildStatementsWithSentences,
   IDENTIFICATION_RULES,
+  INTERPRETED_SPEECH_RULES,
   COMMON_ABBREVIATIONS,
   SCHEMA_DEFINITIONS,
 } from "./shared";
@@ -166,24 +167,24 @@ OUTPUT LANGUAGE: ${langName}
 - Speaker names come verbatim from the transcript — keep them in their original script (do not transliterate).
 - Affiliation should be an ISO-3166 country code or recognized organization abbreviation (e.g., USA, FRA, UN, WHO, UNICEF) — never localize these codes.
 
-CRITICAL: Identify WHO IS ACTUALLY SPEAKING each paragraph, NOT who is being introduced or mentioned.
+CRITICAL: Identify the participant whose intervention each paragraph conveys, including speech through interpretation. Do not attribute introductions to the person being introduced.
 
 TASK:
 - Each paragraph is numbered [0], [1], [2], etc.
 - Each paragraph has an ASR speaker label (A, B, C, etc.) - these are HINTS from automatic diarization
 - WARNING: ASR labels may be incorrect or inconsistent - use them as hints, not facts
-- For each paragraph, identify the ACTUAL SPEAKER (person saying those words) based on the text content
+- For each paragraph, identify the owner of the intervention based on text and conversational context
 - IMPORTANT: If a paragraph contains "I invite X" or "X has the floor", the speaker is the person doing the inviting/giving the floor (usually the Chair), NOT X
 - X will speak in SUBSEQUENT paragraphs
 - When a speaker continues across multiple paragraphs, repeat their information
 - Process EVERY paragraph from [0] to [last]. Never stop early.
 
 MIXED SPEAKER DETECTION:
-Your task is to determine: Does this paragraph contain speech from multiple different people?
+Your task is to determine: Does this paragraph contain interventions belonging to multiple different participants?
 
-Focus on WHO IS SPEAKING, not keyword patterns. Ask yourself:
-- Is the entire paragraph spoken by one person?
-- Or does it contain words from multiple different speakers?
+Focus on whose intervention is conveyed, including interpretation. Ask yourself:
+- Does the whole paragraph belong to one participant's intervention?
+- Or does it contain interventions from different participants?
 
 Common scenarios where paragraphs mix speakers:
   - Previous speaker finishes their remarks, then chair/moderator responds
@@ -261,12 +262,14 @@ ${COMMON_ABBREVIATIONS}
 
 ${SCHEMA_DEFINITIONS}
 
-has_multiple_speakers: Boolean - Does this paragraph contain words spoken by multiple different people? True if multiple speakers' words are mixed together, false if one person speaks the entire paragraph.
+has_multiple_speakers: Boolean - True only if this paragraph contains interventions from different participants. Original speech and its interpretation belong to the same participant.
 
 is_off_record: Boolean - Is this paragraph clearly NOT part of the formal meeting? Only true for paragraphs at the very start/end that are obviously pre-meeting chatter, audio tests, gibberish, or post-meeting remarks. When uncertain, use false.
 
 transcript_assessment: Object - Whole-transcript verdict. is_substantive: false only when the ENTIRE recording clearly contains no real proceedings/statements (see TRANSCRIPT-LEVEL ASSESSMENT above); reason: one short English sentence (internal only).
-`,
+
+
+${INTERPRETED_SPEECH_RULES}`,
           },
           {
             role: "user",

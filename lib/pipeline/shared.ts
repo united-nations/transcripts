@@ -5,6 +5,16 @@ import sbd from "sbd";
 import type { SpeakerInfo } from "@/lib/speakers";
 export type { SpeakerMapping } from "@/lib/speakers";
 
+export const INTERPRETED_SPEECH_RULES = `INTERPRETED SPEECH ATTRIBUTION:
+- The speaker fields identify the person whose intervention is conveyed, including through interpretation.
+- Attribute a faithful oral translation to the original participant: use that participant's exact name, function, affiliation and group for both the original words and their interpreted rendering.
+- Alternating languages, voices or ASR labels during one interpreted intervention do not create another participant or a mixed-speaker paragraph. Do not split solely between an original and its translation.
+- An interpreter's own interventions (asking someone to introduce themselves, clarification, technical comments, or their own substantive remarks) remain separate and may be labelled Interpreter. Do not assign those remarks to the person being interpreted.
+- The same ASR voice may interpret different participants and also speak independently. Resolve ownership from conversational context; never copy one identity to every occurrence of that voice.
+- Genuine handoffs between participants, chair introductions, and audience question/answer boundaries still require separate attribution and splitting when they share a paragraph.
+- Preserve every original and translated word in its original order. This is attribution only: never delete repetitions, translate, paraphrase, or invent an original participant when context does not identify one.
+- For has_multiple_speakers / should_split, count distinct owners of interventions under these rules, rather than physical voices. Original speech plus its interpretation alone is one intervention.`;
+
 export const IDENTIFICATION_RULES = `IDENTIFICATION RULES:
 - Use ASR speaker labels as HINTS for speaker changes (label change often = new speaker), but verify with text
 - ASR may incorrectly group different speakers under same label, or split one speaker across labels

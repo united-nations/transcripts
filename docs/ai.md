@@ -88,7 +88,7 @@ Audio is downloaded from Kaltura and transcribed by the provider routed for that
 **Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Runs for every transcript**, regardless of STT provider.
 
-Identifies who is actually speaking each paragraph (not who is being mentioned or introduced). Uses any provider-supplied diarization labels as hints only.
+Identifies the participant whose intervention each paragraph conveys (not who is being mentioned or introduced). Original speech and its interpretation share the original participant's identity; an interpreter's independent questions or comments remain separate. Uses provider-supplied diarization labels as hints only, since the same voice may interpret different participants.
 
 **Output per paragraph:** `name`, `function`, `affiliation`, `group`, `has_multiple_speakers`, `is_off_record`.
 
@@ -100,7 +100,7 @@ Identifies who is actually speaking each paragraph (not who is being mentioned o
 **Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Only runs for paragraphs flagged as `has_multiple_speakers`.**
 
-ASR sometimes places a speaker boundary incorrectly, merging two speakers into one paragraph. This step splits them. Each flagged paragraph is processed in parallel with surrounding context.
+ASR sometimes places a speaker boundary incorrectly, merging two speakers into one paragraph. This step splits them at changes of intervention owner, preserving genuine chair handoffs and question/answer boundaries. Alternating between original speech and its interpretation alone does not trigger a split. Each flagged paragraph is processed in parallel with surrounding context.
 
 Low-confidence splits are discarded. Splits are also rejected if they change the normalized source text, fail to align with complete timed words, or leave any source words unused; the original paragraph and speaker are retained.
 
