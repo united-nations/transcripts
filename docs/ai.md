@@ -27,8 +27,8 @@ file; 30/15/5-minute windows were about twice as bad). Accepted in exchange: Azu
 
 | Other AI | Model | Used for |
 | --- | --- | --- |
-| Azure OpenAI | `gpt-5.4` (configurable via `STT_ANALYSIS_MODEL`) | Speaker identification, resegmentation, topic definition, proposition analysis |
-| Azure OpenAI | `gpt-5.4-mini` (configurable via `STT_ANALYSIS_MODEL_MINI`) | Sentence-level topic tagging (reasoning disabled) |
+| Azure OpenAI | `gpt-6.1-sol` (configurable via `STT_ANALYSIS_MODEL`) | Speaker identification, resegmentation, topic definition, proposition analysis |
+| Azure OpenAI | `gpt-6-luna` (configurable via `STT_ANALYSIS_MODEL_MINI`) | Sentence-level topic tagging (reasoning disabled) |
 | Google Gemini | `gemini-3-flash-preview` | PV document alignment |
 
 The choice of provider does not change the rest of the pipeline — the same Azure OpenAI analysis stages run regardless, and **no provider names speakers** (they emit opaque/numeric labels; the OpenAI stage in step 2 assigns names from context). Analysis model names are configurable via `STT_ANALYSIS_MODEL` and `STT_ANALYSIS_MODEL_MINI`.
@@ -45,22 +45,22 @@ Kaltura audio URL
        │   Long audio may be split into chunks inside the provider.
        │
        ▼
- 2. Speaker identification + resegmentation (GPT-5.4)
+ 2. Speaker identification + resegmentation (GPT-6.1 Sol)
        │   Single call in lib/pipeline/index.ts:identifySpeakers().
        │   Runs for every transcript regardless of provider.
        │   Per-paragraph speaker resolution; multi-speaker paragraphs are
        │   resegmented in parallel; speaker mapping persisted.
        │
        ▼
- 3. Topic definition (GPT-5.4)
+ 3. Topic definition (GPT-6.1 Sol)
        │   0–10 substantive policy topics from on-record statements.
        │
        ▼
- 4. Sentence topic tagging (GPT-5.4-mini, batched, rate-limited)
+ 4. Sentence topic tagging (GPT-6 Luna, batched, rate-limited)
        │   0–3 topic keys per on-record sentence.
        │
        ▼ (on demand only — POST /api/transcripts/[id]/analysis)
- 5. Proposition analysis (GPT-5.4)
+ 5. Proposition analysis (GPT-6.1 Sol)
 ```
 
 Separately, PV document alignment can run independently when an official verbatim record is available (`POST /api/pv/align`).
@@ -85,7 +85,7 @@ Audio is downloaded from Kaltura and transcribed by the provider routed for that
 ## 2. Speaker identification
 
 **File:** `lib/pipeline/index.ts` — `identifySpeakers()`
-**Model:** `gpt-5.4` via Azure OpenAI (structured output)
+**Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Runs for every transcript**, regardless of STT provider.
 
 Identifies who is actually speaking each paragraph (not who is being mentioned or introduced). Uses any provider-supplied diarization labels as hints only.
@@ -97,7 +97,7 @@ Identifies who is actually speaking each paragraph (not who is being mentioned o
 ## 3. Resegmentation
 
 **File:** `lib/pipeline/resegment.ts` — `resegmentParagraph()`
-**Model:** `gpt-5.4` via Azure OpenAI (structured output)
+**Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Only runs for paragraphs flagged as `has_multiple_speakers`.**
 
 ASR sometimes places a speaker boundary incorrectly, merging two speakers into one paragraph. This step splits them. Each flagged paragraph is processed in parallel with surrounding context.
@@ -107,7 +107,7 @@ Low-confidence splits are discarded.
 ## 4. Topic definition
 
 **File:** `lib/pipeline/define-topics.ts` — `defineTopics()`
-**Model:** `gpt-5.4` via Azure OpenAI (structured output)
+**Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Runs automatically after speaker identification.**
 
 Identifies 0-10 substantive policy topics discussed in the transcript, without filling a minimum quota. Each topic must appear in at least 2 different statements by different speakers. Off-record paragraphs are excluded before constructing prompts. Eligibility is based on substantive content, including announcements, rather than speaker role; chairs, presidents, and moderators are included.
@@ -119,7 +119,7 @@ Identifies 0-10 substantive policy topics discussed in the transcript, without f
 ## 5. Sentence-level topic tagging
 
 **File:** `lib/pipeline/tag-sentences.ts` — `tagSentencesWithTopics()`
-**Model:** `gpt-5.4-mini` via Azure OpenAI (structured output, `reasoning_effort: "none"`)
+**Model:** `gpt-6-luna` via Azure OpenAI (structured output, `reasoning_effort: "none"`)
 **Runs immediately after topic definition, batched with rate-limited concurrency.**
 
 Sentences are grouped into batches of 15 and tagged in parallel (up to 20 concurrent requests, rate-limited to 10/sec via Bottleneck). Each on-record sentence is tagged with 0-3 topic keys from the defined topics. Off-record sentences are excluded from both tagging input and preceding-sentence context. Substantive content is eligible regardless of speaker role; purely procedural sentences receive no tags. Original statement indices are retained when applying tags.
@@ -128,7 +128,7 @@ Sentences are grouped into batches of 15 and tagged in parallel (up to 20 concur
 
 **File:** `lib/pipeline/analyze-propositions.ts` — `analyzePropositions()`
 **API route:** `POST /api/transcripts/[id]/analysis`
-**Model:** `gpt-5.4` via Azure OpenAI (structured output)
+**Model:** `gpt-6.1-sol` via Azure OpenAI (structured output)
 **Not part of the automatic pipeline** — must be explicitly triggered.
 
 Identifies 3-8 concrete propositions (not generic topics) and maps stakeholder positions on each.

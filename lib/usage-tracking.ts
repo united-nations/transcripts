@@ -103,11 +103,16 @@ export async function trackOpenAIChatCompletion({
       const usage = completion.usage;
 
       const cachedInput = usage?.prompt_tokens_details?.cached_tokens ?? 0;
-      // OpenAI's `prompt_tokens` includes cached tokens; the pricing table
-      // bills cached separately, so subtract before passing as input.
+      // Azure exposes cache writes before the SDK types include the field.
+      const cacheWriteInput =
+        (
+          usage?.prompt_tokens_details as
+            { cache_write_tokens?: number } | undefined
+        )?.cache_write_tokens ?? 0;
+      // Prompt and completion totals include the separately billed subcounts.
       const promptUncached = Math.max(
         0,
-        (usage?.prompt_tokens ?? 0) - cachedInput,
+        (usage?.prompt_tokens ?? 0) - cachedInput - cacheWriteInput,
       );
       const reasoningTokens =
         usage?.completion_tokens_details?.reasoning_tokens ?? 0;
@@ -116,7 +121,11 @@ export async function trackOpenAIChatCompletion({
         model,
         inputTokens: promptUncached,
         cachedInputTokens: cachedInput,
-        outputTokens: usage?.completion_tokens ?? 0,
+        cacheWriteInputTokens: cacheWriteInput,
+        outputTokens: Math.max(
+          0,
+          (usage?.completion_tokens ?? 0) - reasoningTokens,
+        ),
         reasoningTokens,
       });
 
@@ -134,6 +143,7 @@ export async function trackOpenAIChatCompletion({
         total_tokens: usage?.total_tokens ?? null,
         rate_card_version: cost?.pricing.rateCardVersion ?? null,
         pricing_meta: safeObject({
+          cache_write_input_tokens: cacheWriteInput,
           estimated_cost_usd: cost?.costUsd ?? null,
           pricing: cost?.pricing ?? null,
         }),

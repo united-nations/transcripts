@@ -21,7 +21,8 @@
  *   - AssemblyAI, Azure gpt-4o-transcribe and Gemini rates verified
  *     2026-05-30 from the public pricing pages (assemblyai.com/pricing,
  *     developers.openai.com/api/docs/pricing, ai.google.dev/gemini-api/docs/pricing).
- *   - OpenAI chat-model rates carried forward from the prior internal table
+ *   - Sol/Luna rates verified 2026-10-23 against their OpenAI model pages.
+ *   - Legacy OpenAI chat-model rates carried forward from the prior internal table
  *     (lib/config.ts → scripts/usage-benchmark.ts).
  *   - Alibaba (Qwen3-ASR / Fun-ASR) is not published in English on
  *     alibabacloud.com — left as 0 with TODO until rates are confirmed from
@@ -42,6 +43,13 @@ export type TokenPricing = {
   outputPerM: number;
   /** USD per 1M cached-input tokens (OpenAI). */
   cachedInputPerM?: number;
+  /** USD per 1M cache-write input tokens (falls back to ordinary input). */
+  cacheWriteInputPerM?: number;
+  longContext?: {
+    inputTokenThreshold: number;
+    inputMultiplier: number;
+    outputMultiplier: number;
+  };
   /** USD per 1M thinking / reasoning tokens (Gemini "thoughts"). */
   thinkingPerM?: number;
   rateCardVersion: string;
@@ -59,7 +67,34 @@ export type Pricing = AudioHoursPricing | TokenPricing;
  * alone collides across vendors.
  */
 export const PROVIDER_PRICING: Record<string, Pricing> = {
-  // ── OpenAI analysis models (moved here from scripts/usage-benchmark.ts) ──
+  // ── OpenAI analysis models ──
+  "openai/gpt-6.1-sol": {
+    kind: "tokens",
+    inputPerM: 2,
+    cachedInputPerM: 0.1,
+    cacheWriteInputPerM: 2.5,
+    outputPerM: 10,
+    longContext: {
+      inputTokenThreshold: 272_000,
+      inputMultiplier: 2,
+      outputMultiplier: 1.5,
+    },
+    rateCardVersion: "2026-10-23",
+  },
+  "openai/gpt-6-luna": {
+    kind: "tokens",
+    inputPerM: 0.1,
+    cachedInputPerM: 0.01,
+    cacheWriteInputPerM: 0.125,
+    outputPerM: 0.5,
+    longContext: {
+      inputTokenThreshold: 272_000,
+      inputMultiplier: 2,
+      outputMultiplier: 1.5,
+    },
+    rateCardVersion: "2026-10-23",
+  },
+  // Retained for historical usage and pinned evaluations.
   "openai/gpt-5.4": {
     kind: "tokens",
     inputPerM: 1.25,
@@ -184,6 +219,7 @@ export function estimateCostUsd(args: {
   inputTokens?: number | null;
   outputTokens?: number | null;
   cachedInputTokens?: number | null;
+  cacheWriteInputTokens?: number | null;
   reasoningTokens?: number | null;
   audioSeconds?: number | null;
 }): { costUsd: number; pricing: Pricing } | null {
@@ -202,21 +238,36 @@ export function estimateCostUsd(args: {
   // tokens
   const input = args.inputTokens ?? 0;
   const cachedInput = args.cachedInputTokens ?? 0;
+  const cacheWriteInput = args.cacheWriteInputTokens ?? 0;
   const output = args.outputTokens ?? 0;
   const reasoning = args.reasoningTokens ?? 0;
-  if (input + cachedInput + output + reasoning === 0) return null;
+  if (input + cachedInput + cacheWriteInput + output + reasoning === 0)
+    return null;
 
-  // OpenAI bills cached-input separately; the `inputTokens` it returns is the
-  // *non-cached* portion. Token-priced providers without a cached tier just
-  // ignore cachedInputPerM (defaults to inputPerM if undefined).
+  // Callers supply disjoint counters: ordinary input excludes cache reads and
+  // writes; output excludes any separately supplied reasoning tokens.
   const cachedRate = pricing.cachedInputPerM ?? pricing.inputPerM;
+  const writeRate = pricing.cacheWriteInputPerM ?? pricing.inputPerM;
   const thinkingRate = pricing.thinkingPerM ?? pricing.outputPerM;
+  const longContext =
+    pricing.longContext &&
+    input + cachedInput + cacheWriteInput >
+      pricing.longContext.inputTokenThreshold;
+  const inputMultiplier = longContext
+    ? pricing.longContext!.inputMultiplier
+    : 1;
+  const outputMultiplier = longContext
+    ? pricing.longContext!.outputMultiplier
+    : 1;
 
   const costUsd =
-    (input * pricing.inputPerM) / 1_000_000 +
-    (cachedInput * cachedRate) / 1_000_000 +
-    (output * pricing.outputPerM) / 1_000_000 +
-    (reasoning * thinkingRate) / 1_000_000;
+    ((input * pricing.inputPerM +
+      cachedInput * cachedRate +
+      cacheWriteInput * writeRate) *
+      inputMultiplier +
+      (output * pricing.outputPerM + reasoning * thinkingRate) *
+        outputMultiplier) /
+    1_000_000;
 
   return { costUsd, pricing };
 }

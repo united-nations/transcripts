@@ -5,6 +5,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { pool, q } from "../lib/db";
+import {
+  getAnalysisModel,
+  getAnalysisModelMini,
+} from "../lib/providers/models";
 import { PROVIDER_PRICING } from "../lib/providers/pricing";
 
 const sinceArg = process.argv.find((arg) => arg.startsWith("--since="));
@@ -23,7 +27,9 @@ function openaiPricing(model: string) {
 }
 
 function assumedModelForStage(stage: string): string {
-  return stage === "tagging_sentences" ? "gpt-5.4-nano" : "gpt-5.4";
+  return stage === "tagging_sentences"
+    ? getAnalysisModelMini()
+    : getAnalysisModel();
 }
 
 type MetadataRow = {
@@ -220,6 +226,7 @@ async function run() {
           SUM(COALESCE(e.output_tokens, 0)) AS output_tokens,
           SUM(COALESCE(e.reasoning_tokens, 0)) AS reasoning_tokens,
           SUM(COALESCE(e.cached_input_tokens, 0)) AS cached_input_tokens,
+          SUM(COALESCE((e.pricing_meta->>'cache_write_input_tokens')::numeric, 0)) AS cache_write_input_tokens,
           SUM(COALESCE(e.total_tokens, 0)) AS total_tokens
         FROM processing_usage_events e
         INNER JOIN eligible_transcripts a ON a.transcript_id = e.transcript_id
@@ -239,6 +246,7 @@ async function run() {
         CASE WHEN t.hours > 0 THEN COALESCE(SUM(s.output_tokens), 0) / t.hours ELSE 0 END AS output_tokens_per_hour,
         CASE WHEN t.hours > 0 THEN COALESCE(SUM(s.reasoning_tokens), 0) / t.hours ELSE 0 END AS reasoning_tokens_per_hour,
         CASE WHEN t.hours > 0 THEN COALESCE(SUM(s.cached_input_tokens), 0) / t.hours ELSE 0 END AS cached_input_tokens_per_hour,
+        CASE WHEN t.hours > 0 THEN COALESCE(SUM(s.cache_write_input_tokens), 0) / t.hours ELSE 0 END AS cache_write_input_tokens_per_hour,
         CASE WHEN t.hours > 0 THEN COALESCE(SUM(s.total_tokens), 0) / t.hours ELSE 0 END AS total_tokens_per_hour
       FROM openai_by_stage s
       CROSS JOIN total_hours t
@@ -267,6 +275,9 @@ async function run() {
     reasoning_tokens_per_hour: Number(
       Number(stage.reasoning_tokens_per_hour).toFixed(2),
     ),
+    cache_write_input_tokens_per_hour: Number(
+      stage.cache_write_input_tokens_per_hour,
+    ),
     cached_input_tokens_per_hour: Number(
       Number(stage.cached_input_tokens_per_hour).toFixed(2),
     ),
@@ -276,18 +287,26 @@ async function run() {
   }));
   console.table(stageRows);
 
+  console.log(
+    "Projection uses short-context rates and observed token counts; model token usage and long-context request premiums may differ.",
+  );
   let openaiCostPerHour = 0;
   const projectedRows = stageRows.map((stage) => {
     const model = assumedModelForStage(String(stage.stage));
     const pricing = openaiPricing(model);
     const uncachedInput = Math.max(
       0,
-      stage.input_tokens_per_hour - stage.cached_input_tokens_per_hour,
+      stage.input_tokens_per_hour -
+        stage.cached_input_tokens_per_hour -
+        stage.cache_write_input_tokens_per_hour,
     );
     const hourlyCost =
       (uncachedInput * pricing.inputPerM) / 1_000_000 +
       (stage.cached_input_tokens_per_hour *
         (pricing.cachedInputPerM ?? pricing.inputPerM)) /
+        1_000_000 +
+      (stage.cache_write_input_tokens_per_hour *
+        (pricing.cacheWriteInputPerM ?? pricing.inputPerM)) /
         1_000_000 +
       (stage.output_tokens_per_hour * pricing.outputPerM) / 1_000_000;
     openaiCostPerHour += hourlyCost;
@@ -296,6 +315,8 @@ async function run() {
       assumed_model: model,
       input_tokens_per_hour: stage.input_tokens_per_hour,
       cached_input_tokens_per_hour: stage.cached_input_tokens_per_hour,
+      cache_write_input_tokens_per_hour:
+        stage.cache_write_input_tokens_per_hour,
       output_tokens_per_hour: stage.output_tokens_per_hour,
       hourly_cost_usd: Number(hourlyCost.toFixed(4)),
     };

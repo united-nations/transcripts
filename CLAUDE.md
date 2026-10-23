@@ -199,9 +199,9 @@ Copy `.env.example` → `.env.local` and fill in values.
 **Optional:**
 
 - STT provider selection is **per-language**, configured in `lib/providers/config.ts` (`STT_ROUTING`), not via an env var. Provider keys are `{vendor}-{model}` (e.g. `assemblyai-universal-3-5-pro`, `azure-llm-speech`, `alibaba-fun-asr`, `speechmatics-melia-1`, `gemini-3-flash`); see `lib/providers/registry.ts`. All Gemini providers emit numeric speaker IDs only — names are assigned downstream by the OpenAI speaker-ID stage.
-- `STT_ANALYSIS_MODEL` — Azure OpenAI model for speaker ID, resegmentation, topics, propositions (default: `gpt-5.4`)
-- `STT_ANALYSIS_MODEL_MINI` — Azure OpenAI model for cross-chunk normalization (default: `gpt-5.4-mini`)
-- `STT_ANALYSIS_MODEL_NANO` — Azure OpenAI model for sentence tagging (default: `gpt-5.4-nano`)
+- `STT_ANALYSIS_MODEL` — Azure OpenAI model for speaker ID, resegmentation, topics, propositions (default: `gpt-6.1-sol`)
+- `STT_ANALYSIS_MODEL_MINI` — Azure OpenAI model for sentence tagging (default: `gpt-6-luna`)
+- `STT_ANALYSIS_MODEL_NANO` — legacy lightweight model helper, currently unused (default: `gpt-6-luna`)
 
 **Eval system only:** `ELEVENLABS_API_KEY`, `GROQ_API_KEY`, `DEEPGRAM_API_KEY`, `MISTRAL_API_KEY`, `SONIOX_API_KEY`, `HF_TOKEN`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_BUCKET`, `ASSEMBLYAI_API_KEY`. (`AZURE_SPEECH_KEY` / `AZURE_SPEECH_ENDPOINT` moved to **required** on 2026-07-14 for fr/es/ar/ru and now also serve **en**. `DASHSCOPE_API_KEY` is required for zh. `ASSEMBLYAI_API_KEY` moved back to eval-only on 2026-07-30 when English left AssemblyAI.)
 
@@ -239,9 +239,9 @@ Triggered from the video page UI (`POST /api/transcripts`) or via the scheduled-
 1. **Transcribe** — provider selected **per language** via `lib/providers/config.ts` (`STT_ROUTING`: en/fr/es/ar/ru→Azure LLM Speech, Chinese→Alibaba Fun-ASR, floor→Speechmatics Melia). Audio is downloaded from Kaltura and transcribed with numeric speaker diarization (no names — see step 2). Providers chunk long audio internally as needed.
 
    > **Do not route a language to AssemblyAI without scoring omission first.** English ran on AssemblyAI Universal-3.5 Pro until 2026-07-30 and was moved after a member-state complaint traced to *silently dropped speech* — spans of audio the model simply does not transcribe, with no error and no marker. Measured over the bake-off corpus it omitted 0.580% of audio vs Azure's 0.082%. Neither WER nor the pipeline's coverage guard could see it (the guard only compares the last paragraph's end to audio duration, so it is blind to interior holes). The metric that does see it is `eval/metrics/omission.ts`. Full story: `eval/analysis/SYNTHESIS.md` §16.
-2. **Speaker identification + resegmentation** — `lib/pipeline/index.ts:identifySpeakers()` runs per-paragraph speaker resolution and multi-speaker resegmentation (Azure OpenAI / GPT-5.4) and persists the speaker mapping. (Pipeline stages live in `lib/pipeline/`.)
-3. **Topic definition** — identifies 5–10 substantive policy topics across the meeting (GPT-5.4).
-4. **Sentence tagging** — tags each non-chair sentence with 0–3 topic keys (GPT-5.4-nano, batched; rate-limited via Bottleneck — 20 concurrent / 10 per sec).
+2. **Speaker identification + resegmentation** — `lib/pipeline/index.ts:identifySpeakers()` runs per-paragraph speaker resolution and multi-speaker resegmentation (Azure OpenAI / GPT-6.1 Sol) and persists the speaker mapping. (Pipeline stages live in `lib/pipeline/`.)
+3. **Topic definition** — identifies 5–10 substantive policy topics across the meeting (GPT-6.1 Sol).
+4. **Sentence tagging** — tags each substantive sentence with 0–3 topic keys (GPT-6 Luna, batched; rate-limited via Bottleneck — 20 concurrent / 10 per sec).
 5. **Proposition analysis** *(always on demand, never in the main pipeline)* — `POST /api/transcripts/[id]/analysis` identifies stakeholder positions on concrete propositions, with fuzzy-match evidence verification. It is tracked on a separate `analysis_status` axis and **never** moves the transcript off `completed`, so running it doesn't hide the transcript from other viewers.
 6. **PV alignment** *(separate)* — `POST /api/pv/align` aligns an official UN verbatim record with the audio for timestamped speaker turns.
 
