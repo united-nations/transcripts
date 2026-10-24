@@ -1,3 +1,5 @@
+import { shouldDropInjectedBrowserEvent } from "./sentry-injected-browser";
+
 // Surgical client-side Sentry noise filtering.
 //
 // This module holds the *decision* of whether a browser error event is one of
@@ -34,6 +36,7 @@ interface FilterableFrame {
   filename?: string;
   abs_path?: string;
   module?: string;
+  function?: string;
 }
 
 interface FilterableException {
@@ -94,6 +97,8 @@ function frameIsKaltura(frame: FilterableFrame): boolean {
  * otherwise. Pure and side-effect-free.
  */
 export function shouldDropClientEvent(event: FilterableEvent): boolean {
+  if (shouldDropInjectedBrowserEvent(event)) return true;
+
   const exceptions = event.exception?.values ?? [];
 
   // 1. Kaltura player bundle frames (TRANSCRIPTS-2K, 2A). If any exception in
