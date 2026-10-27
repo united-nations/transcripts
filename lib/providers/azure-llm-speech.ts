@@ -105,6 +105,11 @@ export const azureLlmSpeech: TranscriptionProvider = {
         "-y",
         "-i",
         filePath,
+        // Kaltura audio can contain timestamp gaps (including many tiny gaps).
+        // MP3 has a continuous sample clock: preserve the playback timeline by
+        // padding gaps, rather than collapsing them and shifting later speech.
+        "-af",
+        "aresample=async=1:first_pts=0",
         "-ac",
         "1",
         "-b:a",
