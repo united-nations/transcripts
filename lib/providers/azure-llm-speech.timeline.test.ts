@@ -12,23 +12,24 @@ afterEach(() => {
 });
 
 it.each([
-  ["an inserted gap", "asetpts=PTS+gte(T\\,2)/TB"],
-  ["accumulated small gaps", "asetpts=PTS*1.25"],
+  ["an inserted gap", "asetpts=PTS+gte(T\\,2)/TB", 5, 4],
+  ["accumulated small gaps", "asetpts=PTS*1.25", 5, 3.75],
+  ["continuous audio", "anull", 4, 3],
 ])(
-  "preserves %s in the audio sent to STT",
-  async (_label, timestamps) => {
+  "preserves playback timing for %s in the audio sent to STT",
+  async (_label, timestamps, expectedDuration, expectedMarkerStart) => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "speech-timeline-"));
     const source = path.join(dir, "source.m4a");
     const uploaded = path.join(dir, "uploaded.mp3");
-    // Four seconds of samples on a five-second playback timeline. Plain MP3
-    // conversion collapses either kind of gap, shifting later speech.
+    // A brief tone at sample-clock second 3 stands in for later speech. Checking
+    // its position catches conversions that just append silence at the end.
     execFileSync("ffmpeg", [
       "-v",
       "error",
       "-f",
       "lavfi",
       "-i",
-      "sine=frequency=440:sample_rate=48000:duration=4",
+      "aevalsrc=if(between(t\\,3\\,3.2)\\,0.5*sin(2*PI*440*t)\\,0):s=48000:d=4",
       "-af",
       timestamps,
       "-c:a",
@@ -64,8 +65,32 @@ it.each([
         { encoding: "utf8" },
       ).trim(),
     );
-    expect(duration).toBeCloseTo(5, 0);
+    expect(duration).toBeCloseTo(expectedDuration, 0);
     expect(result.durationMs).toBeCloseTo(duration * 1000, 0);
+    const sampleRate = 8000;
+    const pcm = execFileSync("ffmpeg", [
+      "-v",
+      "error",
+      "-i",
+      uploaded,
+      "-ac",
+      "1",
+      "-ar",
+      String(sampleRate),
+      "-f",
+      "s16le",
+      "pipe:1",
+    ]);
+    let markerStart: number | undefined;
+    for (let offset = 0; offset < pcm.length; offset += 2) {
+      if (Math.abs(pcm.readInt16LE(offset)) > 3000) {
+        markerStart = offset / 2 / sampleRate;
+        break;
+      }
+    }
+    expect(markerStart).toBeDefined();
+    // async=1 corrects accumulated timestamp error once it exceeds 0.1s.
+    expect(Math.abs(markerStart! - expectedMarkerStart)).toBeLessThan(0.12);
   },
   20_000,
 );

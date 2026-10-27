@@ -28,6 +28,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Audio timeline regressions exercise the real conversion with local
+      # synthetic fixtures; do not depend on optional runner-image tools.
+      - name: Install audio test tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       # Blocking gate — protects the deterministic data-processing logic and
       # types. The Layer 1 test suite runs fully offline (a dummy DATABASE_URL
       # is injected by vitest.config.ts; nothing connects).
