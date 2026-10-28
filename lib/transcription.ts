@@ -27,6 +27,7 @@ import {
 import { currentWorkerId } from "./worker-identity";
 import { identifySpeakers } from "./pipeline";
 import { notifyTranscriptSubscribersById } from "./notifications/notify";
+import { notifyIndexNowByTranscriptId } from "./indexnow-transcript";
 import type { SpeakerMapping } from "./speakers";
 import { trackTranscription, trackTranscriptionError } from "./usage-tracking";
 import { bcp47ToKalturaName } from "./languages";
@@ -453,6 +454,7 @@ async function runAnalysisPipeline(
   // cannot flip the just-completed row to `error`. The cron remains the
   // backstop and the ledger dedups the two triggers.
   await notifyTranscriptSubscribersById(transcriptId);
+  await notifyIndexNowByTranscriptId(transcriptId);
 }
 
 export type SpeakerIdentificationResult =
@@ -522,6 +524,7 @@ export async function runSpeakerIdentification(
     // Never throws; the ledger dedups against the cron and against prior runs
     // (so a `reidentify` re-run won't re-email already-notified subscribers).
     await notifyTranscriptSubscribersById(transcriptId);
+    await notifyIndexNowByTranscriptId(transcriptId);
 
     const updated = await getTranscriptById(transcriptId);
     return {
