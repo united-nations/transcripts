@@ -23,6 +23,7 @@
  * (one-off legacy cleanup).
  */
 import { pool, type TranscriptContent } from "./db";
+import { notifyIndexNowByTranscriptId } from "./indexnow-transcript";
 import { getKalturaAudioUrl } from "./transcription";
 import { fetchKalturaDurations } from "./kaltura-helpers";
 import { bcp47ToKalturaName } from "./languages";
@@ -335,6 +336,7 @@ export async function realignTranscript(
         "UPDATE webtv.transcripts SET time_offset_ms = NULL, aligned_duration_ms = $1, updated_at = NOW() WHERE transcript_id = $2",
         [alignedMs, input.transcriptId],
       );
+      await notifyIndexNowByTranscriptId(input.transcriptId);
     }
     return {
       ...res,
@@ -348,6 +350,7 @@ export async function realignTranscript(
       "UPDATE webtv.transcripts SET time_offset_ms = $1, aligned_duration_ms = $2, updated_at = NOW() WHERE transcript_id = $3",
       [res.offsetMs, alignedMs, input.transcriptId],
     );
+    await notifyIndexNowByTranscriptId(input.transcriptId);
     return { ...res, status: "applied" };
   }
   return { ...res, status: "valid_dryrun" };

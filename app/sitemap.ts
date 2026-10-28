@@ -3,6 +3,7 @@ import { routing } from "@/i18n/routing";
 import { getSitemapMeetingLanguages } from "@/lib/db";
 import { getBaseUrl } from "@/lib/get-base-url";
 import { videoUrl } from "@/lib/video-url";
+import { meetingHtmlLastModified } from "@/lib/meeting-freshness";
 
 // Public-facing routes that are the same path across locales. Auth-walled
 // surfaces (login, verify, subscriptions) and the entire speaker directory
@@ -26,7 +27,6 @@ const STATIC_PATHS = ["/", "/about"] as const;
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = await getBaseUrl();
-  const now = new Date();
 
   function staticLanguages(path: string) {
     const tail = path === "/" ? "" : path;
@@ -39,7 +39,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const languages = staticLanguages(path);
     return routing.locales.map((locale) => ({
       url: languages[locale],
-      lastModified: now,
+      // No reliable static-page revision date: omit rather than falsely
+      // announcing an edit every time the sitemap is requested.
       alternates: { languages },
     }));
   });
@@ -61,7 +62,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       bucket = { languages: {} };
       bySlug.set(slug, bucket);
     }
-    bucket.languages[row.languageCode] = row.lastModified;
+    const previous = bucket.languages[row.languageCode];
+    if (!previous || row.lastModified > previous) {
+      bucket.languages[row.languageCode] = row.lastModified;
+    }
   }
 
   const meetingEntries: MetadataRoute.Sitemap = [];
@@ -82,7 +86,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const locale of Object.keys(byLang)) {
       meetingEntries.push({
         url: `${base}/${locale}/${slug}`,
-        lastModified: byLang[locale],
+        lastModified: meetingHtmlLastModified(byLang[locale]),
         alternates: { languages },
       });
       meetingEntries.push({

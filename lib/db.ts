@@ -1615,7 +1615,24 @@ export async function saveVideo(
              -- Merge per-locale variants: a later sync that only re-scrapes a
              -- subset of locales must not blank the others. Newer keys win.
              i18n = videos.i18n || EXCLUDED.i18n,
-             updated_at = NOW()`,
+             -- Polling last_seen is not a content edit. Preserve the page's
+             -- revision time unless one of the persisted metadata fields
+             -- actually changes (including merged locale variants).
+             updated_at = CASE WHEN ROW(
+               videos.entry_id, videos.kaltura_id, videos.title,
+               videos.clean_title, videos.scheduled_time, videos.duration,
+               videos.body, videos.category, videos.event_code,
+               videos.event_type, videos.session_number, videos.pv_symbol,
+               videos.i18n
+             ) IS DISTINCT FROM ROW(
+               COALESCE(EXCLUDED.entry_id, videos.entry_id),
+               EXCLUDED.kaltura_id, EXCLUDED.title, EXCLUDED.clean_title,
+               EXCLUDED.scheduled_time, EXCLUDED.duration, EXCLUDED.body,
+               EXCLUDED.category, EXCLUDED.event_code, EXCLUDED.event_type,
+               EXCLUDED.session_number,
+               COALESCE(EXCLUDED.pv_symbol, videos.pv_symbol),
+               videos.i18n || EXCLUDED.i18n
+             ) THEN NOW() ELSE videos.updated_at END`,
         [
           video.asset_id,
           video.entry_id,
@@ -2674,8 +2691,12 @@ export async function updatePVAvailability(
 ): Promise<void> {
   await pool.query(
     q(
-      "UPDATE webtv.videos SET pv_available = ?, pv_checked_at = NOW(), updated_at = NOW() WHERE asset_id = ?",
-      [available, assetId],
+      `UPDATE webtv.videos
+          SET pv_available = ?, pv_checked_at = NOW(),
+              updated_at = CASE WHEN pv_available IS DISTINCT FROM ?
+                                THEN NOW() ELSE updated_at END
+        WHERE asset_id = ?`,
+      [available, available, assetId],
     ),
   );
 }
