@@ -10,11 +10,9 @@ import { TranscriptionPanel } from "@/components/transcription-panel";
  * Server async component that resolves the transcript for the URL locale
  * and renders <TranscriptionPanel> with it pre-populated.
  *
- * Sitting inside a <Suspense> boundary in video-page.tsx, this is what
- * makes streaming SSR pay off: the shell (header, player, sidebar) flushes
- * to the browser at ~TTFB while this component is still awaiting the DB
- * query; when the query resolves, the resolved markup arrives as a late
- * chunk and React swaps the skeleton for the real transcript.
+ * Rendered without a Suspense/loading boundary so the transcript query
+ * completes before the page shell is sent. The speeches are then visible
+ * HTML, rather than hidden streamed content requiring a script to reveal it.
  *
  * Word-level timestamps are stripped before sending (63% of the payload)
  * — the panel fetches them lazily via /api/transcripts/[id]/words once

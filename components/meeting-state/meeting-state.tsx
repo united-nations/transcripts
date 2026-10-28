@@ -23,8 +23,8 @@ import { setUrlParam, setUrlParams } from "@/lib/url-params";
 
 /**
  * State shared between the meeting page's chrome (VideoPageClient: language
- * switcher, topic sidebar, video player) and the transcript panel that lives
- * inside its Suspense slot. Moved into Context — not prop-drilled — because
+ * switcher, topic sidebar, video player) and the server-rendered transcript
+ * panel. Moved into Context — not prop-drilled — because
  * the panel is now rendered by a server component sibling of VideoPageClient,
  * not its child, so callbacks/props can't reach across the boundary.
  *

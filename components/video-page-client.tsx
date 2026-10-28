@@ -35,10 +35,9 @@ interface VideoPageClientProps {
   metadata: VideoMetadata;
   isLoggedIn: boolean;
   /**
-   * The transcript section, rendered by an async server component sibling
-   * inside a Suspense boundary so the chrome (header / player / sidebar)
-   * can stream to the browser while the DB query is still running. See
-   * components/server-transcript.tsx + components/transcript-skeleton.tsx.
+   * The transcript section, preloaded by a server component so the speeches
+   * are visible in the initial HTML. Player and panel interactions share
+   * MeetingStateProvider after hydration.
    */
   children: ReactNode;
 }

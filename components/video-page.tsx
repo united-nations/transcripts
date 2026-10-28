@@ -16,23 +16,15 @@ import { localizeWebtvAssetUrl } from "@/lib/un-links";
 import type { VideoRecord } from "@/lib/db";
 import { formatDateForMetadata } from "@/lib/timezone";
 import { videoUrl } from "@/lib/video-url";
-import {
-  createEmptyMetadata,
-  recordToVideo,
-} from "@/lib/un-api";
+import { createEmptyMetadata, recordToVideo } from "@/lib/un-api";
 import { fetchKalturaEntryStatuses } from "@/lib/kaltura-helpers";
-import {
-  applyRemoval,
-  classifyKaltura,
-} from "@/lib/removed-videos";
+import { applyRemoval, classifyKaltura } from "@/lib/removed-videos";
 import { widePageWidth } from "@/lib/layout";
 import { cn, jsonLdScript } from "@/lib/utils";
 import { ExternalLink } from "@/components/external-link";
 import { VideoPageClient } from "@/components/video-page-client";
 import { MeetingStateProvider } from "@/components/meeting-state/meeting-state";
 import { ServerTranscript } from "@/components/server-transcript";
-import { TranscriptSkeleton } from "@/components/transcript-skeleton";
-import { Suspense } from "react";
 
 /**
  * A WebTV category in the active locale, for the meta description and
@@ -233,17 +225,12 @@ export async function renderVideoPage({
   const textHref = `/${locale}/${canonicalPath}.txt`;
   const jsonHref = `/${locale}/${canonicalPath}.json`;
 
-  // Streaming SSR: the page shell (header, player, sidebar, machine-formats
-  // line below) is rendered synchronously and flushed at ~TTFB. The
-  // <ServerTranscript> inside the Suspense boundary awaits the transcript
-  // DB query in parallel; its resolved markup arrives as a late HTTP chunk
-  // and React swaps the skeleton for the real transcript in place. No-JS
-  // crawlers wait for the full response and see the transcript text inline
-  // either way — but humans see chrome paint at ~150 ms instead of ~700.
-  //
-  // State shared across the Suspense boundary (selectedLanguage, panelData,
-  // player, …) lives in <MeetingStateProvider> above, so the chrome
-  // (VideoPageClient) and the streamed-in panel can both read/write it.
+  // Keep the transcript outside Suspense so it is visible in the initial
+  // HTML. React streams resolved boundaries inside hidden containers that
+  // require inline scripts to reveal them; HTML readers that discard hidden
+  // elements otherwise miss the speeches. Meeting routes must also remain
+  // outside loading.tsx boundaries (the other pages use the (site) group).
+  // MeetingStateProvider still shares the interactive player/panel state.
   return (
     <main id="main" tabIndex={-1} className="min-h-screen bg-background">
       <script
@@ -259,19 +246,17 @@ export async function renderVideoPage({
           metadata={metadata}
           isLoggedIn={isLoggedIn}
         >
-          <Suspense fallback={<TranscriptSkeleton />}>
-            <ServerTranscript
-              kalturaId={kalturaId}
-              locale={locale}
-              isLoggedIn={isLoggedIn}
-              experimentalAccess={experimentalAccess}
-              video={video}
-              record={record}
-            />
-          </Suspense>
+          <ServerTranscript
+            kalturaId={kalturaId}
+            locale={locale}
+            isLoggedIn={isLoggedIn}
+            experimentalAccess={experimentalAccess}
+            video={video}
+            record={record}
+          />
         </VideoPageClient>
       </MeetingStateProvider>
-      {/* Server-rendered after the (client-only) transcript panel so an
+      {/* Server-rendered after the transcript panel so an
           agent fetching this URL with no JS sees fetchable links to the
           .txt / .json siblings. Position is "below the transcript" in the
           rendered DOM but — critically — appears in the initial HTML
